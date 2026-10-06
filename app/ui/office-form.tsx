@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { calcOffice, type CalcResult, type Mosu } from "@/lib/calc";
 import { FIELDS, FIELD_GROUPS, type FieldDef } from "@/lib/fields";
+import { officesFromSheet } from "@/lib/import-offices";
 import type { Office } from "@/lib/offices";
 import { citationFor, REGULATION_NAME, ROUNDING_CITATION } from "@/lib/regulation";
 import { validateInputs, validateReferences, type Issue } from "@/lib/validate";
+import { readFirstSheet } from "@/lib/xlsx-read";
 
 const REGION = "전남청"; // 목포우체국이 속한 지방우정청
 
@@ -87,8 +89,12 @@ function OfficeChips({ list, onPick }: { list: Office[]; onPick: (code: string) 
   );
 }
 
+// 엑셀로 불러온 값. 파일은 서버로 보내지 않고 이 브라우저 안에서만 읽는다.
+type Uploaded = { fileName: string; values: Record<string, Record<string, number>> };
+type UploadMessage = { kind: "ok" | "error"; text: string };
+
 export default function OfficeForm({
-  offices,
+  offices: baseOffices,
   mosu,
   workdays,
 }: {
@@ -96,6 +102,20 @@ export default function OfficeForm({
   mosu: Mosu;
   workdays: number;
 }) {
+  const [uploaded, setUploaded] = useState<Uploaded | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<UploadMessage | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 엑셀을 올렸으면 그 값으로, 아니면 data 폴더의 원본 값으로 관서 목록을 만든다.
+  const offices = useMemo(
+    () =>
+      uploaded
+        ? baseOffices.map((o) => ({ ...o, values: { ...o.values, ...(uploaded.values[o.code] ?? {}) } }))
+        : baseOffices,
+    [baseOffices, uploaded],
+  );
+
   const [selectedCode, setSelectedCode] = useState(offices[0].code);
   // 사용자가 고친 값만 관서별로 보관한다. 고치지 않은 항목은 원본 자료 값을 쓴다.
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({});
@@ -156,6 +176,45 @@ export default function OfficeForm({
       ...prev,
       [office.code]: { ...prev[office.code], [key]: value },
     }));
+  }
+
+  // 업무량 엑셀을 읽어 28개 관서의 값을 바꾼다. 직접 고친 값은 새 파일 기준으로 다시 시작하도록 지운다.
+  async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // 같은 파일을 다시 골라도 동작하도록 비운다
+    if (!file) return;
+
+    setUploading(true);
+    setUploadMessage(null);
+    try {
+      const rows = await readFirstSheet(await file.arrayBuffer());
+      const result = officesFromSheet(rows, baseOffices);
+      if (result.matched.length === 0) {
+        throw new Error("이 파일에서 목포우체국과 소속국의 금융국기호를 찾지 못했습니다. 올바른 업무량 파일인지 확인해 주세요.");
+      }
+      setUploaded({ fileName: file.name, values: result.updates });
+      setEdits({});
+      const names = baseOffices.filter((o) => result.missing.includes(o.code)).map((o) => o.name);
+      setUploadMessage({
+        kind: "ok",
+        text:
+          `${file.name}에서 ${result.matched.length}곳의 값을 불러왔습니다.` +
+          (names.length > 0 ? ` 파일에서 찾지 못한 관서(${names.join(", ")})는 기존 값을 그대로 씁니다.` : ""),
+      });
+    } catch (err) {
+      setUploadMessage({
+        kind: "error",
+        text: err instanceof Error ? err.message : "엑셀 파일을 읽지 못했습니다.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function clearUploaded() {
+    setUploaded(null);
+    setEdits({});
+    setUploadMessage(null);
   }
 
   function resetOffice() {
@@ -219,6 +278,59 @@ export default function OfficeForm({
       </aside>
 
       <div className="min-w-0 space-y-6">
+        {/* 엑셀 올리기: 담당자가 업무량 엑셀을 나중에라도 바꿔 올릴 수 있다 */}
+        <section className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="mr-auto text-sm font-semibold">업무량 엑셀 파일</h2>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx"
+              onChange={handleFile}
+              className="sr-only"
+              aria-label="업무량 엑셀 파일 선택"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {uploading ? "읽는 중…" : "엑셀 파일 올리기"}
+            </button>
+            {uploaded ? (
+              <button
+                type="button"
+                onClick={clearUploaded}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+              >
+                처음 자료로 되돌리기
+              </button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+            「(기초자료1) 우편창구(마케팅) 업무량」 형식의 .xlsx 파일을 올리면 목포우체국과 소속국 27국의 값을 읽어 옵니다.
+            파일은 서버로 보내지 않고 이 브라우저 안에서만 읽으며, 새로고침하면 처음 자료로 돌아갑니다.
+          </p>
+          {uploaded ? (
+            <p className="mt-1 text-xs font-medium text-blue-800 dark:text-blue-300">
+              현재 사용 중인 값: 업로드한 파일 ({uploaded.fileName})
+            </p>
+          ) : null}
+          {uploadMessage ? (
+            <p
+              role={uploadMessage.kind === "error" ? "alert" : "status"}
+              className={`mt-2 rounded px-3 py-2 text-sm ${
+                uploadMessage.kind === "error"
+                  ? "bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-200"
+                  : "bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-200"
+              }`}
+            >
+              {uploadMessage.text}
+            </p>
+          ) : null}
+        </section>
+
         {/* 목포우체국 전체 합계 */}
         <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
           <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
