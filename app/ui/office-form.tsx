@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { calcOffice, type CalcResult, type Mosu } from "@/lib/calc";
 import { FIELDS, FIELD_GROUPS, type FieldDef } from "@/lib/fields";
 import type { Office } from "@/lib/offices";
+import { citationFor, REGULATION_NAME, ROUNDING_CITATION } from "@/lib/regulation";
 import { validateInputs, validateReferences, type Issue } from "@/lib/validate";
 
 const REGION = "전남청"; // 목포우체국이 속한 지방우정청
@@ -158,6 +159,9 @@ export default function OfficeForm({
                 우편창구 {fmt(counterAll)} + 우편마케팅 {fmt(marketingAll)} = {fmt(counterAll + marketingAll)}명을
                 합산해 반올림했습니다. (연간 근무일수 {workdays}일 기준)
               </p>
+              <p className="mt-1 text-xs text-blue-900/70 dark:text-blue-200/70">
+                근거: [별표 2] {ROUNDING_CITATION.article} — {ROUNDING_CITATION.remark}
+              </p>
             </>
           ) : (
             <div className="mt-1 text-sm text-blue-900 dark:text-blue-100">
@@ -232,6 +236,7 @@ export default function OfficeForm({
                   {w}
                 </p>
               ))}
+              <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">근거 규정: {REGULATION_NAME}</p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[32rem] text-left text-sm">
                   <thead className="text-zinc-600 dark:text-zinc-400">
@@ -239,21 +244,29 @@ export default function OfficeForm({
                       <th className="py-1.5 pr-3 font-medium">분야</th>
                       <th className="py-1.5 pr-3 font-medium">항목</th>
                       <th className="py-1.5 pr-3 text-right font-medium">소요 인력(명)</th>
-                      <th className="py-1.5 font-medium">적용 산출식 (별표 2)</th>
+                      <th className="py-1.5 font-medium">적용 산출식 · 근거 조문</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {result.lines.map((l) => (
-                      <tr key={`${l.section}-${l.name}`} className="border-b border-zinc-100 align-top dark:border-zinc-900">
-                        <td className="py-1.5 pr-3">{l.section}</td>
-                        <td className="py-1.5 pr-3">{l.name}</td>
-                        <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(l.value)}</td>
-                        <td className="py-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-                          {l.formula}
-                          {l.note ? <span className="block text-zinc-500">※ {l.note}</span> : null}
-                        </td>
-                      </tr>
-                    ))}
+                    {result.lines.map((l) => {
+                      // Plan SC: 모든 산출 결과 줄에 근거 조문을 붙인다. 못 찾으면 빈칸 대신 "확인 필요"로 알린다.
+                      const cite = citationFor(kindOf(office), l.section, l.name);
+                      return (
+                        <tr key={`${l.section}-${l.name}`} className="border-b border-zinc-100 align-top dark:border-zinc-900">
+                          <td className="py-1.5 pr-3">{l.section}</td>
+                          <td className="py-1.5 pr-3">{l.name}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(l.value)}</td>
+                          <td className="py-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                            {l.formula}
+                            <span className="mt-0.5 block font-medium text-zinc-800 dark:text-zinc-200">
+                              근거 조문: {cite ? `[별표 2] ${cite.article}` : "확인 필요"}
+                            </span>
+                            {cite?.remark ? <span className="block text-zinc-500">비고: {cite.remark}</span> : null}
+                            {l.note ? <span className="block text-zinc-500">※ {l.note}</span> : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="font-semibold">
                     <tr>
