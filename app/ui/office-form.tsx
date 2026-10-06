@@ -29,6 +29,45 @@ const kindOf = (o: Office) => (o.kind === "총괄국" ? "총괄국" : "소속국
 // 관서 하나의 점검·계산 결과. 점검에서 문제가 나오면 계산하지 않으므로 result는 비어 있다.
 type OfficeOutcome = { issues: Issue[]; result: CalcResult | null };
 
+// 숫자 입력칸. 입력 중에는 있는 그대로 보여 주고, 칸을 벗어나면 천 단위 쉼표를 붙여 읽기 쉽게 보여 준다.
+// 저장하는 값은 쉼표 없는 글자이며, 숫자인지·음수인지는 lib/validate.ts가 점검한다.
+function NumberInput({
+  value,
+  onChange,
+  invalid,
+  edited,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  invalid: boolean;
+  edited: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const n = Number(value);
+  const canFormat = value.trim() !== "" && Number.isFinite(n);
+  const shown = !focused && canFormat ? n.toLocaleString("ko-KR", { maximumFractionDigits: 6 }) : value;
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      value={shown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(e.target.value.replace(/[,\s]/g, ""))}
+      aria-invalid={invalid}
+      className={`rounded-md border px-2 py-1.5 text-right tabular-nums dark:bg-zinc-900 ${
+        invalid
+          ? "border-red-500 bg-red-50 dark:bg-red-950"
+          : edited
+            ? "border-blue-500"
+            : "border-zinc-300 dark:border-zinc-700"
+      }`}
+    />
+  );
+}
+
 // 합계 카드에서 문제가 있는 관서로 바로 이동하는 이름 버튼 목록
 function OfficeChips({ list, onPick }: { list: Office[]; onPick: (code: string) => void }) {
   return (
@@ -136,7 +175,7 @@ export default function OfficeForm({
         <h2 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
           관서 선택 ({offices.length}곳)
         </h2>
-        <ul className="max-h-[70vh] overflow-y-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <ul className="max-h-56 overflow-y-auto rounded-lg lg:max-h-[70vh] border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           {offices.map((o) => {
             const active = o.code === office.code;
             const hasIssue = outcomes.get(o.code)!.issues.length > 0;
@@ -341,12 +380,16 @@ export default function OfficeForm({
         </section>
 
         {/* 입력 항목 */}
-        {FIELD_GROUPS.map((group) => (
+        {FIELD_GROUPS.map((group) => {
+          const groupFields = visibleFields.filter((f) => f.group === group);
+          // 이 관서 종류에서 입력받는 칸이 없는 분야(예: 소속국의 우편마케팅)는 제목도 보이지 않게 한다.
+          if (groupFields.length === 0) return null;
+          return (
           <section key={group} className="space-y-4">
             <h3 className="border-b border-zinc-300 pb-1 text-lg font-semibold dark:border-zinc-700">
               {group} 입력
             </h3>
-            {groupBySection(visibleFields.filter((f) => f.group === group)).map(({ section, items }) => (
+            {groupBySection(groupFields).map(({ section, items }) => (
               <fieldset key={section} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
                 <legend className="px-2 text-sm font-medium">{section}</legend>
                 <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
@@ -358,20 +401,11 @@ export default function OfficeForm({
                         <span className="text-zinc-700 dark:text-zinc-300">
                           {f.label} <span className="text-zinc-500">({f.unit})</span>
                         </span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
+                        <NumberInput
                           value={valueOf(f.key)}
-                          onChange={(e) => changeValue(f.key, e.target.value)}
-                          aria-invalid={invalid}
-                          className={`rounded-md border px-2 py-1.5 text-right tabular-nums dark:bg-zinc-900 ${
-                            invalid
-                              ? "border-red-500 bg-red-50 dark:bg-red-950"
-                              : edited
-                                ? "border-blue-500"
-                                : "border-zinc-300 dark:border-zinc-700"
-                          }`}
+                          onChange={(text) => changeValue(f.key, text)}
+                          invalid={invalid}
+                          edited={edited}
                         />
                       </label>
                     );
@@ -380,7 +414,8 @@ export default function OfficeForm({
               </fieldset>
             ))}
           </section>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
