@@ -18,9 +18,14 @@ export type CalcLine = {
   section: "우편창구" | "우편마케팅";
   name: string;
   formula: string; // 적용한 산출식(근거)
-  value: number; // 소요 인력(명)
+  value: number; // 소요 인력(명). unsupported가 있으면 계산하지 않은 것이므로 0이고 합계에도 반영하지 않는다.
   note?: string;
+  // 규정에는 있지만 이 화면이 아직 지원하지 않아 계산하지 않은 경우의 이유. (규정에 없는 경우와 구분한다.)
+  unsupported?: string;
 };
+
+// 별표 2 우편마케팅 > 소속국: 계약소포 연간세입이 3억 원을 초과하면 총괄국 산출기준을 따른다.
+const AFFILIATE_PARCEL_REV_LIMIT = 300_000_000;
 
 export type CalcResult = {
   lines: CalcLine[];
@@ -223,16 +228,20 @@ export function calcOffice(
     const contract = v(values, "contractParcelRevAffiliate");
     const allAffiliateRev = mean(Object.values(mosu.marketing).map((m) => m.affiliateParcelRev));
     const ref = weighted(allAffiliateRev, mosu.marketing[region].affiliateParcelRev, 1, 1);
-    add({
-      section: "우편마케팅",
-      name: "계약소포 연간세입",
-      formula: "계약소포 연간세입÷청별기준세입",
-      value: div(contract, ref),
-    });
-    if (contract > 300_000_000) {
-      warnings.push(
-        "소속국 계약소포 세입이 3억 원을 넘어 총괄국 산출기준을 따라야 하지만, 이 화면은 아직 지원하지 않습니다.",
-      );
+    const marketingFormula = "계약소포 연간세입÷청별기준세입";
+    // Plan SC: 규정에 있으나 아직 지원하지 않는 경우는 추측해서 계산하지 않고 그 사실을 그대로 표시한다.
+    if (contract > AFFILIATE_PARCEL_REV_LIMIT) {
+      add({
+        section: "우편마케팅",
+        name: "계약소포 연간세입",
+        formula: marketingFormula,
+        value: 0,
+        unsupported:
+          "소속국 계약소포 세입이 3억 원을 초과해 별표 2에 따라 총괄국 산출기준(단 기준은 전체평균)을 적용해야 합니다. " +
+          "이 화면은 아직 이 경우를 지원하지 않아(총괄국 산출에 필요한 입점업체 세입 등의 입력칸이 없음) 계산하지 않았습니다.",
+      });
+    } else {
+      add({ section: "우편마케팅", name: "계약소포 연간세입", formula: marketingFormula, value: div(contract, ref) });
     }
   }
 

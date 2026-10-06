@@ -29,6 +29,25 @@ const kindOf = (o: Office) => (o.kind === "총괄국" ? "총괄국" : "소속국
 // 관서 하나의 점검·계산 결과. 점검에서 문제가 나오면 계산하지 않으므로 result는 비어 있다.
 type OfficeOutcome = { issues: Issue[]; result: CalcResult | null };
 
+// 합계 카드에서 문제가 있는 관서로 바로 이동하는 이름 버튼 목록
+function OfficeChips({ list, onPick }: { list: Office[]; onPick: (code: string) => void }) {
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {list.map((o) => (
+        <li key={o.code}>
+          <button
+            type="button"
+            onClick={() => onPick(o.code)}
+            className="rounded-full border border-blue-300 bg-white px-3 py-0.5 text-xs text-blue-900 hover:bg-blue-100 dark:bg-blue-900 dark:text-blue-100"
+          >
+            {o.name}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function OfficeForm({
   offices,
   mosu,
@@ -75,11 +94,19 @@ export default function OfficeForm({
   const invalidKeys = new Set(outcome.issues.map((i) => i.key).filter(Boolean));
   const officesWithIssues = offices.filter((o) => outcomes.get(o.code)!.issues.length > 0);
 
-  // 28개 관서가 모두 점검을 통과했을 때만 합계를 낸다.
-  const allResults = Array.from(outcomes.values()).map((o) => o.result);
-  const allReady = allResults.every((r): r is CalcResult => r !== null);
-  const counterAll = allReady ? allResults.reduce((s, r) => s + r.counterTotal, 0) : 0;
-  const marketingAll = allReady ? allResults.reduce((s, r) => s + r.marketingTotal, 0) : 0;
+  // 규정에는 있지만 이 화면이 아직 지원하지 않아 계산하지 않은 항목이 있는 관서
+  const unsupportedOffices = offices.filter((o) =>
+    outcomes.get(o.code)!.result?.lines.some((l) => l.unsupported),
+  );
+  const hasUnsupported = result?.lines.some((l) => l.unsupported) ?? false;
+
+  // 28개 관서가 모두 점검을 통과하고 빠진 항목 없이 계산됐을 때만 합계를 낸다.
+  const readyResults = Array.from(outcomes.values())
+    .map((o) => o.result)
+    .filter((r): r is CalcResult => r !== null);
+  const allReady = readyResults.length === offices.length && unsupportedOffices.length === 0;
+  const counterAll = allReady ? readyResults.reduce((s, r) => s + r.counterTotal, 0) : 0;
+  const marketingAll = allReady ? readyResults.reduce((s, r) => s + r.marketingTotal, 0) : 0;
 
   function valueOf(key: string) {
     return officeEdits[key] ?? String(office.values[key] ?? 0);
@@ -113,6 +140,7 @@ export default function OfficeForm({
           {offices.map((o) => {
             const active = o.code === office.code;
             const hasIssue = outcomes.get(o.code)!.issues.length > 0;
+            const isUnsupported = unsupportedOffices.includes(o);
             return (
               <li key={o.code}>
                 <button
@@ -131,6 +159,13 @@ export default function OfficeForm({
                         title="입력 점검이 필요합니다"
                       >
                         ⚠ 점검
+                      </span>
+                    ) : isUnsupported ? (
+                      <span
+                        className={`ml-1 text-xs font-semibold ${active ? "text-amber-200" : "text-amber-700"}`}
+                        title="규정에는 있으나 이 화면이 아직 지원하지 않는 항목이 있습니다"
+                      >
+                        ⚠ 미지원
                       </span>
                     ) : null}
                   </span>
@@ -166,23 +201,24 @@ export default function OfficeForm({
           ) : (
             <div className="mt-1 text-sm text-blue-900 dark:text-blue-100">
               <p className="text-lg font-bold">합계를 계산할 수 없습니다</p>
-              <p className="mt-1">
-                입력 점검이 필요한 관서가 {officesWithIssues.length}곳 있습니다. 해당 관서의 입력을 고치면
-                합계가 다시 계산됩니다.
-              </p>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {officesWithIssues.map((o) => (
-                  <li key={o.code}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCode(o.code)}
-                      className="rounded-full border border-blue-300 bg-white px-3 py-0.5 text-xs text-blue-900 hover:bg-blue-100 dark:bg-blue-900 dark:text-blue-100"
-                    >
-                      {o.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {officesWithIssues.length > 0 ? (
+                <>
+                  <p className="mt-1">
+                    입력 점검이 필요한 관서가 {officesWithIssues.length}곳 있습니다. 해당 관서의 입력을 고치면
+                    합계가 다시 계산됩니다.
+                  </p>
+                  <OfficeChips list={officesWithIssues} onPick={setSelectedCode} />
+                </>
+              ) : null}
+              {unsupportedOffices.length > 0 ? (
+                <>
+                  <p className="mt-2">
+                    규정에는 있지만 이 화면이 아직 지원하지 않아 계산하지 않은 항목이 있는 관서가{" "}
+                    {unsupportedOffices.length}곳 있습니다. 빠진 항목이 있는 합계는 보여 주지 않습니다.
+                  </p>
+                  <OfficeChips list={unsupportedOffices} onPick={setSelectedCode} />
+                </>
+              ) : null}
             </div>
           )}
         </section>
@@ -227,10 +263,27 @@ export default function OfficeForm({
         <section className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-semibold">소요 인력 산출 결과</h3>
-            {result ? <p className="text-lg font-bold">{fmt(result.total)}명</p> : null}
+            {result ? (
+              <p className="text-lg font-bold">
+                {fmt(result.total)}명
+                {hasUnsupported ? <span className="ml-1 text-xs font-normal text-amber-700">(미지원 항목 제외)</span> : null}
+              </p>
+            ) : null}
           </div>
           {result ? (
             <>
+              {result.lines
+                .filter((l) => l.unsupported)
+                .map((l) => (
+                  <div
+                    key={`unsupported-${l.section}-${l.name}`}
+                    role="status"
+                    className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                  >
+                    <p className="font-semibold">규정에 있으나 미지원: {l.section} · {l.name}</p>
+                    <p className="mt-0.5">{l.unsupported}</p>
+                  </div>
+                ))}
               {result.warnings.map((w) => (
                 <p key={w} className="mb-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                   {w}
@@ -255,7 +308,9 @@ export default function OfficeForm({
                         <tr key={`${l.section}-${l.name}`} className="border-b border-zinc-100 align-top dark:border-zinc-900">
                           <td className="py-1.5 pr-3">{l.section}</td>
                           <td className="py-1.5 pr-3">{l.name}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(l.value)}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">
+                            {l.unsupported ? <span className="text-amber-700">계산 안 함</span> : fmt(l.value)}
+                          </td>
                           <td className="py-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                             {l.formula}
                             <span className="mt-0.5 block font-medium text-zinc-800 dark:text-zinc-200">
