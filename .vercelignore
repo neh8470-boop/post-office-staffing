@@ -1,0 +1,10 @@
+.env
+.env*
+node_modules
+.next
+.git
+.bkit
+.claude
+trash-can
+*.xlsx
+*.hwpx

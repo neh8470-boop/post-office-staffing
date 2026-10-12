@@ -210,7 +210,7 @@ my app/
 │  ├─ xlsx-read.ts · import-offices.ts     업무량 엑셀 읽기(올리기 버튼용)
 │  ├─ offices.ts · mosu.ts · workdays.ts   자료 읽기·근무일수
 ├─ data/                  내부용 자료(git 제외): groups.json(전남청 25개 총괄국 묶음), mosu.json
-├─ proxy.ts               접속 비밀번호 문지기 (추가)
+├─ proxy.ts               접속 비밀번호 문지기 (구현됨: 비밀번호는 환경변수 SITE_PASSWORD, 로그인 화면 app/login, 처리 app/api/login, 공통 lib/auth.ts)
 └─ PRD.md · PLAN.md · DESIGN.md · CLAUDE.md
 ```
 
