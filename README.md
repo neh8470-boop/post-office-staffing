@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 우체국 인력 운영기준 분석
 
-## Getting Started
+「우정사업본부 현업관서 인력 운영기준 규정」 **[별표 2]** 의 산출식에 따라 우체국의 **소요 인력**(우편창구·우편마케팅)을 계산하는 입력 화면 방식 웹앱입니다. 챗봇이 아닙니다.
 
-First, run the development server:
+## 왜 만들었나
+
+담당 직원이 약 2,478개 관서의 소요 인력을 공문과 엑셀로 일일이 모아 계산하느라 시간이 많이 듭니다. 이 앱은 규정에 따라 소요 인력을 자동으로 계산하고, **적용한 산출식과 근거 조문**을 함께 보여 줍니다.
+
+## 화면 구성
+
+| 탭 | 내용 |
+|---|---|
+| 처음 화면 | 서비스 소개, 누가·왜 쓰는지, 사용 방법, 목차 |
+| 총괄국·관서 조회 | 총괄국과 소속국을 골라 입력·계산, 합계(반올림) |
+| 직접 입력 계산 | 전국 어느 관서든 값을 직접 넣거나 업무량 엑셀에서 불러와 계산 |
+| 참고자료 | 규정 [별표 1]~[별표 4] 정리 |
+
+## 계산 원칙
+
+- 소요 인력은 [별표 2]의 산출식만 사용합니다.
+- 필수 입력값이 비어 있거나 잘못되면 계산하지 않고 어떤 항목이 문제인지 안내합니다.
+- 계산 로직은 `lib/`의 순수 함수로 화면과 분리되어 있습니다.
+
+## 기술 스택
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · 배포: Vercel
+
+## 실행 방법
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm run build   # 배포용 빌드
+npm run lint    # 코드 검사
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 내부 자료와 접속 비밀번호
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 관서별 업무량과 모수(기준값) 자료는 **내부용**이라 이 저장소에 들어 있지 않습니다. 계산 탭을 쓰려면 프로젝트의 `data/groups.json`, `data/mosu.json`이 필요하고, 없으면 두 계산 탭에 안내만 표시됩니다. (처음 화면·참고자료는 자료 없이 열립니다.)
+- 배포 환경에서는 환경변수 `SITE_PASSWORD`로 접속 비밀번호를 걸어 비밀번호 없이는 화면이 열리지 않습니다. 개발용 컴퓨터에서는 설정하지 않으면 비밀번호 없이 열립니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 문서
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+기획 [PRD.md](PRD.md) · 구현 계획 [PLAN.md](PLAN.md) · 설계 [DESIGN.md](DESIGN.md) · 작업 규칙 [CLAUDE.md](CLAUDE.md)
