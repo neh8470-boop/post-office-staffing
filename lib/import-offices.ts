@@ -11,10 +11,10 @@ export const UPLOAD_COLUMNS: Record<string, string> = {
   Y: "parcelRegularVol", AA: "parcelRegisteredCounterVol", AC: "contractParcelVol", AD: "contractParcelRev",
   AE: "contractVol", AG: "contractIndividualVol", AI: "pickupReturnVol", AK: "pickupIndividualVol",
   AM: "storePartnerVol", AN: "storePartnerRev", AO: "intlGeneralVol", AP: "intlGeneralRev",
-  AQ: "intlSpecialVol", AS: "intlParcelVol", AU: "kpacketVol", AW: "intlExpressVol",
+  AQ: "intlSpecialVol", AR: "intlSpecialRev", AS: "intlParcelVol", AU: "kpacketVol", AW: "intlExpressVol", AX: "intlExpressRev",
   AY: "intlExpressCounterVol", BA: "intlExpressVisitVol", BC: "collectAgentVol", BE: "mvnoCount",
   BF: "parcelBoxCount", BG: "collectAgentCounterVol", BI: "totalRevenue", BJ: "contractParcelRevAffiliate",
-  BK: "labelingVol", BM: "courtSpecialIndividualVol", BR: "intlAirParcelVol", BV: "contentCertVol",
+  BK: "labelingVol", BM: "courtSpecialIndividualVol", BN: "courtSystemLinkVol", BR: "intlAirParcelVol", BV: "contentCertVol",
   BW: "simpleReceiptVol", BY: "directShipVol", CA: "eLabelVol", CB: "manualLabelVol",
   CC: "returnParcelPickupVol", CD: "returnDeliveryVol",
 };

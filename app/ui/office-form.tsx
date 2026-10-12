@@ -4,12 +4,12 @@ import { useMemo, useRef, useState } from "react";
 import { calcOffice, type CalcResult, type Mosu } from "@/lib/calc";
 import { FIELDS, FIELD_GROUPS, type FieldDef } from "@/lib/fields";
 import { officesFromSheet } from "@/lib/import-offices";
-import type { Office } from "@/lib/offices";
+import type { Office, OfficeGroup } from "@/lib/offices";
 import { citationFor, REGULATION_NAME, ROUNDING_CITATION } from "@/lib/regulation";
 import { validateInputs, validateReferences, type Issue } from "@/lib/validate";
 import { readFirstSheet } from "@/lib/xlsx-read";
 
-const REGION = "전남청"; // 목포우체국이 속한 지방우정청
+const REGION = "전남청"; // 목포·광주우체국이 속한 지방우정청
 
 // 같은 소제목(section)끼리 묶는다.
 function groupBySection(fields: FieldDef[]) {
@@ -25,8 +25,8 @@ function groupBySection(fields: FieldDef[]) {
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("ko-KR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-// 별정국도 소속국과 같은 산출식을 쓴다.
-const kindOf = (o: Office) => (o.kind === "총괄국" ? "총괄국" : "소속국");
+// 별정국도 소속국과 같은 산출식을 쓰고, 법원국(법원구내우체국)은 따로 계산한다.
+const kindOf = (o: Office) => (o.kind === "총괄국" ? "총괄국" : o.kind === "법원국" ? "법원구내" : "소속국");
 
 // 관서 하나의 점검·계산 결과. 점검에서 문제가 나오면 계산하지 않으므로 result는 비어 있다.
 type OfficeOutcome = { issues: Issue[]; result: CalcResult | null };
@@ -94,11 +94,11 @@ type Uploaded = { fileName: string; values: Record<string, Record<string, number
 type UploadMessage = { kind: "ok" | "error"; text: string };
 
 export default function OfficeForm({
-  offices: baseOffices,
+  groups,
   mosu,
   workdays,
 }: {
-  offices: Office[];
+  groups: OfficeGroup[];
   mosu: Mosu;
   workdays: number;
 }) {
@@ -107,16 +107,28 @@ export default function OfficeForm({
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 엑셀을 올렸으면 그 값으로, 아니면 data 폴더의 원본 값으로 관서 목록을 만든다.
-  const offices = useMemo(
+  // 화면에 나오는 모든 관서(원본 값). 엑셀 올리기에서 관서를 찾는 기준이 된다.
+  const baseOffices = useMemo(() => groups.flatMap((g) => g.offices), [groups]);
+
+  // 엑셀을 올렸으면 그 값으로, 아니면 data 폴더의 원본 값으로 묶음별 관서 목록을 만든다.
+  const mergedGroups = useMemo(
     () =>
       uploaded
-        ? baseOffices.map((o) => ({ ...o, values: { ...o.values, ...(uploaded.values[o.code] ?? {}) } }))
-        : baseOffices,
-    [baseOffices, uploaded],
+        ? groups.map((g) => ({
+            ...g,
+            offices: g.offices.map((o) => ({ ...o, values: { ...o.values, ...(uploaded.values[o.code] ?? {}) } })),
+          }))
+        : groups,
+    [groups, uploaded],
   );
+  const allOffices = useMemo(() => mergedGroups.flatMap((g) => g.offices), [mergedGroups]);
 
-  const [selectedCode, setSelectedCode] = useState(offices[0].code);
+  // 지금 보고 있는 묶음(총괄국 + 그 소속국들)
+  const [groupId, setGroupId] = useState(groups[0].id);
+  const group = mergedGroups.find((g) => g.id === groupId) ?? mergedGroups[0];
+  const offices = group.offices;
+
+  const [selectedCode, setSelectedCode] = useState(groups[0].offices[0].code);
   // 사용자가 고친 값만 관서별로 보관한다. 고치지 않은 항목은 원본 자료 값을 쓴다.
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({});
 
@@ -127,7 +139,7 @@ export default function OfficeForm({
   // Design Ref: §2.3 — 관서마다 "입력 점검 → 계산" 순서로 처리한다. 점검을 통과해야만 계산한다.
   const outcomes = useMemo(() => {
     const map = new Map<string, OfficeOutcome>();
-    for (const o of offices) {
+    for (const o of allOffices) {
       const kind = kindOf(o);
       const raw: Record<string, string> = {};
       for (const [key, value] of Object.entries(o.values)) raw[key] = String(value);
@@ -146,7 +158,7 @@ export default function OfficeForm({
       map.set(o.code, { issues, result: calcOffice(kind, merged, mosu, REGION, workdays) });
     }
     return map;
-  }, [offices, edits, mosu, workdays]);
+  }, [allOffices, edits, mosu, workdays]);
 
   const outcome = outcomes.get(office.code)!;
   const result = outcome.result;
@@ -159,9 +171,9 @@ export default function OfficeForm({
   );
   const hasUnsupported = result?.lines.some((l) => l.unsupported) ?? false;
 
-  // 28개 관서가 모두 점검을 통과하고 빠진 항목 없이 계산됐을 때만 합계를 낸다.
-  const readyResults = Array.from(outcomes.values())
-    .map((o) => o.result)
+  // 이 묶음의 모든 관서가 점검을 통과하고 빠진 항목 없이 계산됐을 때만 합계를 낸다.
+  const readyResults = offices
+    .map((o) => outcomes.get(o.code)!.result)
     .filter((r): r is CalcResult => r !== null);
   const allReady = readyResults.length === offices.length && unsupportedOffices.length === 0;
   const counterAll = allReady ? readyResults.reduce((s, r) => s + r.counterTotal, 0) : 0;
@@ -178,7 +190,15 @@ export default function OfficeForm({
     }));
   }
 
-  // 업무량 엑셀을 읽어 28개 관서의 값을 바꾼다. 직접 고친 값은 새 파일 기준으로 다시 시작하도록 지운다.
+  // 묶음(목포/광주)을 바꾸면 그 묶음의 총괄국을 먼저 보여 준다.
+  function changeGroup(id: string) {
+    const next = mergedGroups.find((g) => g.id === id);
+    if (!next) return;
+    setGroupId(id);
+    setSelectedCode(next.offices[0].code);
+  }
+
+  // 업무량 엑셀을 읽어 화면의 모든 관서 값을 바꾼다. 직접 고친 값은 새 파일 기준으로 다시 시작하도록 지운다.
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = ""; // 같은 파일을 다시 골라도 동작하도록 비운다
@@ -190,7 +210,9 @@ export default function OfficeForm({
       const rows = await readFirstSheet(await file.arrayBuffer());
       const result = officesFromSheet(rows, baseOffices);
       if (result.matched.length === 0) {
-        throw new Error("이 파일에서 목포우체국과 소속국의 금융국기호를 찾지 못했습니다. 올바른 업무량 파일인지 확인해 주세요.");
+        throw new Error(
+          `이 파일에서 ${groups.map((g) => g.name).join("·")}과 그 소속국의 금융국기호를 찾지 못했습니다. 올바른 업무량 파일인지 확인해 주세요.`,
+        );
       }
       setUploaded({ fileName: file.name, values: result.updates });
       setEdits({});
@@ -228,6 +250,30 @@ export default function OfficeForm({
   const visibleFields = FIELDS.filter((f) => f.kinds.includes(kindOf(office)));
 
   return (
+    <div className="space-y-6">
+    {/* 총괄국 묶음 고르기 */}
+    <div role="tablist" aria-label="총괄국 묶음" className="flex flex-wrap gap-2">
+      {mergedGroups.map((g) => {
+        const active = g.id === group.id;
+        return (
+          <button
+            key={g.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => changeGroup(g.id)}
+            className={`rounded-full border px-4 py-1.5 text-sm font-medium ${
+              active
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-zinc-300 bg-white hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+            }`}
+          >
+            {g.name} <span className={active ? "text-blue-100" : "text-zinc-500"}>({g.offices.length}곳)</span>
+          </button>
+        );
+      })}
+    </div>
+
     <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
       {/* 관서 선택 */}
       <aside className="lg:sticky lg:top-6 lg:self-start">
@@ -309,7 +355,7 @@ export default function OfficeForm({
             ) : null}
           </div>
           <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-            「(기초자료1) 우편창구(마케팅) 업무량」 형식의 .xlsx 파일을 올리면 목포우체국과 소속국 27국의 값을 읽어 옵니다.
+            「(기초자료1) 우편창구(마케팅) 업무량」 형식의 .xlsx 파일을 올리면 {groups.map((g) => g.name).join("·")}과 그 소속국({baseOffices.length}곳)의 값을 읽어 옵니다.
             파일은 서버로 보내지 않고 이 브라우저 안에서만 읽으며, 새로고침하면 처음 자료로 돌아갑니다.
           </p>
           {uploaded ? (
@@ -331,10 +377,10 @@ export default function OfficeForm({
           ) : null}
         </section>
 
-        {/* 목포우체국 전체 합계 */}
+        {/* 선택한 묶음의 전체 합계 */}
         <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
           <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-            목포우체국 전체 소요 인력 (총괄국 + 소속국 {offices.length - 1}국 합산)
+            {group.name} 전체 소요 인력 (총괄국 + 소속국 {offices.length - 1}국 합산)
           </h2>
           {allReady ? (
             <>
@@ -529,6 +575,7 @@ export default function OfficeForm({
           );
         })}
       </div>
+    </div>
     </div>
   );
 }

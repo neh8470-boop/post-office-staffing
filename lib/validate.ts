@@ -5,7 +5,7 @@
 // 0은 허용하고, 빈칸·숫자가 아닌 값·음수는 허용하지 않는다.
 // 기준값(모수)이 없거나 0 이하이면 계산 결과를 믿을 수 없으므로 같은 방식으로 멈춘다.
 
-import type { Mosu } from "./calc";
+import type { CalcKind, Mosu } from "./calc";
 import type { FieldDef } from "./fields";
 
 export type Issue = {
@@ -41,7 +41,7 @@ export function validateInputs(fields: InputField[], raw: Record<string, string>
 
 // 기준값(모수)과 연간 근무일수를 검사한다. 지방청 자료가 없거나 0 이하이면 계산하지 않는다.
 export function validateReferences(
-  kind: "총괄국" | "소속국",
+  kind: CalcKind,
   mosu: Mosu,
   region: string,
   workdays: number,
@@ -66,14 +66,21 @@ export function validateReferences(
     const m = mosu.marketing[region];
     need("기준값: 우편마케팅 택배 세입", m?.parcelRev);
     need("기준값: 우편마케팅 인당 픽업물량", m?.pickupVol);
-    need("기준값: 마케팅 전체 평균 택배 세입", mosu.marketingAllAvg?.parcelRev);
-    need("기준값: 마케팅 전체 평균 픽업물량", mosu.marketingAllAvg?.pickupVol);
     need("연간 근무일수", workdays);
-  } else {
+  } else if (kind === "소속국") {
     const a = mosu.affiliate[region];
     need("기준값: 소속국 연간세입", a?.generalRev);
     need("기준값: 소속국 알뜰폰 건수", a?.mvno);
     need("기준값: 소속국 소포상자 건수", a?.box);
+    need("기준값: 소속국 택배 세입", mosu.marketing[region]?.affiliateParcelRev);
+  } else {
+    const court = mosu.court;
+    need("기준값: 법원구내 연간세입", court?.generalRev);
+    need("기준값: 법원구내 특수통상(창구접수) 물량", court?.specialCounterVol);
+    need("기준값: 법원구내 특수통상(연계접수) 물량", court?.specialLinkVol);
+    need("기준값: 법원구내 국제특급 물량", court?.intlExpressVol);
+    need("기준값: 법원구내 알뜰폰 건수", court?.mvno);
+    need("기준값: 법원구내 소포상자 건수", court?.box);
     need("기준값: 소속국 택배 세입", mosu.marketing[region]?.affiliateParcelRev);
   }
   return issues;

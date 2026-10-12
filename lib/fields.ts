@@ -2,7 +2,7 @@
 // 별표 2 산출식에서 쓰는 이름과 연결해 둔다. (key는 data/offices.json의 값 이름)
 
 export type FieldGroup = "우편창구" | "우편마케팅";
-export type OfficeKind = "총괄국" | "소속국";
+export type OfficeKind = "총괄국" | "소속국" | "법원구내";
 
 export type FieldDef = {
   key: string;
@@ -14,8 +14,9 @@ export type FieldDef = {
 };
 
 const G: OfficeKind[] = ["총괄국"];
-const S: OfficeKind[] = ["소속국"];
-const GS: OfficeKind[] = ["총괄국", "소속국"];
+const SC: OfficeKind[] = ["소속국", "법원구내"]; // 소속국 · 법원구내우체국 공통
+const C: OfficeKind[] = ["법원구내"];
+const ALL: OfficeKind[] = ["총괄국", "소속국", "법원구내"];
 
 export const FIELDS: FieldDef[] = [
   // ── 우편창구 · 일반통상 ──
@@ -36,14 +37,22 @@ export const FIELDS: FieldDef[] = [
   { key: "intlAirParcelVol", label: "국제 항공소포 물량", unit: "통", group: "우편창구", section: "소포", kinds: G },
   // ── 우편창구 · 국제특급 ──
   { key: "kpacketVol", label: "Kpacket 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: G },
-  { key: "intlExpressVol", label: "국제특급 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: G },
+  // 국제특급은 "창구접수 限"이라서 창구접수 물량만 입력받는다.
+  { key: "intlExpressCounterVol", label: "국제특급 창구접수 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: G },
   // ── 우편창구 · 소속국 세입 ──
-  { key: "totalRevenue", label: "소속국 총세입", unit: "원", group: "우편창구", section: "소속국 세입", kinds: S },
+  { key: "totalRevenue", label: "소속국 총세입", unit: "원", group: "우편창구", section: "소속국 세입", kinds: SC },
   // 같은 값을 우편창구 연간세입(총세입에서 뺌)과 우편마케팅 계약소포 연간세입에 함께 쓰므로 한 곳에만 둔다.
-  { key: "contractParcelRevAffiliate", label: "소속국 계약소포 세입 (우편창구·우편마케팅 공통)", unit: "원", group: "우편창구", section: "소속국 세입", kinds: S },
+  { key: "contractParcelRevAffiliate", label: "소속국 계약소포 세입 (우편창구·우편마케팅 공통)", unit: "원", group: "우편창구", section: "소속국 세입", kinds: SC },
+  // ── 우편창구 · 법원구내우체국 전용 항목 ──
+  { key: "domSpecialRev", label: "국내 특수통상 세입", unit: "원", group: "우편창구", section: "법원구내우체국", kinds: C },
+  { key: "intlSpecialRev", label: "국제 특수통상 세입", unit: "원", group: "우편창구", section: "법원구내우체국", kinds: C },
+  { key: "intlExpressRev", label: "국제특급 세입", unit: "원", group: "우편창구", section: "법원구내우체국", kinds: C },
+  { key: "courtSpecialIndividualVol", label: "법원우체국 특수통상 개별접수 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
+  { key: "courtSystemLinkVol", label: "법원우체국 특수통상 시스템연계(USB접수) 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
+  { key: "intlExpressVol", label: "국제특급 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
   // ── 우편창구 · 기타업무(공통) ──
-  { key: "mvnoCount", label: "알뜰폰 판매실적(가입건수)", unit: "건", group: "우편창구", section: "기타업무(공통)", kinds: GS },
-  { key: "parcelBoxCount", label: "소포상자 판매물량", unit: "개", group: "우편창구", section: "기타업무(공통)", kinds: GS },
+  { key: "mvnoCount", label: "알뜰폰 판매실적(가입건수)", unit: "건", group: "우편창구", section: "기타업무(공통)", kinds: ALL },
+  { key: "parcelBoxCount", label: "소포상자 판매물량", unit: "개", group: "우편창구", section: "기타업무(공통)", kinds: ALL },
   // ── 우편마케팅 · 계약소포 세입 ──
   { key: "contractParcelRev", label: "계약소포 세입", unit: "원", group: "우편마케팅", section: "계약소포 세입", kinds: G },
   { key: "storePartnerRev", label: "입점업체 세입", unit: "원", group: "우편마케팅", section: "계약소포 세입", kinds: G },

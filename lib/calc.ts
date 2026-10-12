@@ -1,17 +1,31 @@
 // 소요 인력 산출 (우편창구·우편마케팅). 별표 2의 산출식을 그대로 옮긴 순수 함수들이다.
 // 같은 입력이면 항상 같은 결과가 나오며, 화면 코드와 분리해 둔다.
+//
+// 청별 기준값: 모수 파일(우편창구마케팅 모수 현황)의 지방청별 값은 '전체 평균 2 : 지방청 1' 같은 가중 계산이
+// 이미 끝난 최종 기준값이다. 담당자 산출 파일도 이 값을 그대로 나눗셈에 쓰므로, 여기서도 다시 평균을 섞지 않고 그대로 쓴다.
 
 export type Values = Record<string, number>;
+
+// 관서 종류. 별정국은 소속국과 같은 산출식을 쓰고, 법원구내우체국(예: 광주법원우체국)은 따로 계산한다.
+export type CalcKind = "총괄국" | "소속국" | "법원구내";
 
 type CounterMosu = { generalRev: number; specialVol: number; parcelVol: number; intlVol: number; mvno: number; box: number };
 type AffiliateMosu = { generalRev: number; mvno: number; box: number };
 type MarketingMosu = { parcelRev: number; pickupVol: number; affiliateParcelRev: number };
+type CourtMosu = {
+  generalRev: number;
+  specialCounterVol: number;
+  specialLinkVol: number;
+  intlExpressVol: number;
+  mvno: number;
+  box: number;
+};
 
 export type Mosu = {
   counter: Record<string, CounterMosu>;
   affiliate: Record<string, AffiliateMosu>;
   marketing: Record<string, MarketingMosu>;
-  marketingAllAvg: { parcelRev: number; pickupVol: number };
+  court: CourtMosu; // 법원구내우체국 기준값 (지방청과 관계없이 하나)
 };
 
 export type CalcLine = {
@@ -35,36 +49,31 @@ export type CalcResult = {
   warnings: string[];
 };
 
-// 한 지방청 값과 전체 평균을 가중 평균한다. 예: 전체 평균 2 : 지방청 1
-function weighted(all: number, region: number, wAll: number, wRegion: number) {
-  return (all * wAll + region * wRegion) / (wAll + wRegion);
-}
-
-function mean(values: number[]) {
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-// 0으로 나누지 않도록 막는다. 기준값이 0이면 0명으로 본다.
+// 0으로 나누지 않도록 막는다. 기준값이 0이면 0명으로 본다. (기준값 0은 입력 점검에서 먼저 막는다.)
 function div(a: number, b: number) {
   return b === 0 ? 0 : a / b;
 }
 
 const v = (values: Values, key: string) => values[key] ?? 0;
 
-// 총괄국 우편창구 모수의 청별 기준값 (전체 평균 2 : 해당 지방청 1)
-function counterRef(mosu: Mosu, region: string, field: keyof CounterMosu) {
-  const all = mean(Object.values(mosu.counter).map((m) => m[field]));
-  return weighted(all, mosu.counter[region][field], 2, 1);
-}
-
-// 소속국 우편창구 모수의 청별 기준값 (전체 평균 2 : 해당 지방청 1)
-function affiliateRef(mosu: Mosu, region: string, field: keyof AffiliateMosu) {
-  const all = mean(Object.values(mosu.affiliate).map((m) => m[field]));
-  return weighted(all, mosu.affiliate[region][field], 2, 1);
+// 소속국·법원구내우체국의 우편마케팅 "계약소포 연간세입" 줄. 3억 원을 초과하면 계산하지 않고 미지원으로 표시한다.
+function affiliateMarketingLine(contract: number, ref: number): CalcLine {
+  const base = { section: "우편마케팅" as const, name: "계약소포 연간세입", formula: "계약소포 연간세입÷청별기준세입" };
+  // Plan SC: 규정에 있으나 아직 지원하지 않는 경우는 추측해서 계산하지 않고 그 사실을 그대로 표시한다.
+  if (contract > AFFILIATE_PARCEL_REV_LIMIT) {
+    return {
+      ...base,
+      value: 0,
+      unsupported:
+        "소속국 계약소포 세입이 3억 원을 초과해 별표 2에 따라 총괄국 산출기준(단 기준은 전체평균)을 적용해야 합니다. " +
+        "이 화면은 아직 이 경우를 지원하지 않아(총괄국 산출에 필요한 입점업체 세입 등의 입력칸이 없음) 계산하지 않았습니다.",
+    };
+  }
+  return { ...base, value: div(contract, ref) };
 }
 
 export function calcOffice(
-  kind: "총괄국" | "소속국",
+  kind: CalcKind,
   values: Values,
   mosu: Mosu,
   region: string,
@@ -76,17 +85,12 @@ export function calcOffice(
 
   if (kind === "총괄국") {
     // ── 우편창구 ──
-    const refRev = counterRef(mosu, region, "generalRev");
-    const refSpecial = counterRef(mosu, region, "specialVol");
-    const refParcel = counterRef(mosu, region, "parcelVol");
-    const refIntl = counterRef(mosu, region, "intlVol");
-    const refMvno = counterRef(mosu, region, "mvno");
-    const refBox = counterRef(mosu, region, "box");
+    const c = mosu.counter[region];
 
     const email = v(values, "emailSelfRev") + v(values, "emailConsignRev"); // 전자우편세입
     const general = div(
       v(values, "domGeneralRev") - email + email * 3.5 + v(values, "intlGeneralRev"),
-      refRev,
+      c.generalRev,
     );
     add({
       section: "우편창구",
@@ -101,8 +105,8 @@ export function calcOffice(
     const special =
       div(
         v(values, "domSpecialVol") - v(values, "specialHubVol") - content + content * 5 + v(values, "intlSpecialVol") - label,
-        refSpecial,
-      ) + div(label, refSpecial * 5);
+        c.specialVol,
+      ) + div(label, c.specialVol * 5);
     add({
       section: "우편창구",
       name: "특수통상",
@@ -114,7 +118,7 @@ export function calcOffice(
     const air = v(values, "intlAirParcelVol");
     const parcel = div(
       v(values, "parcelRegularVol") + v(values, "parcelRegisteredCounterVol") + v(values, "intlParcelVol") - air,
-      refParcel,
+      c.parcelVol,
     );
     add({
       section: "우편창구",
@@ -123,11 +127,12 @@ export function calcOffice(
       value: parcel,
     });
 
-    const express = div(air + v(values, "kpacketVol") + v(values, "intlExpressVol"), refIntl);
+    // 국제특급은 "창구접수 限"이라서 국제특급 전체 물량이 아니라 창구접수 물량만 쓴다.
+    const express = div(air + v(values, "kpacketVol") + v(values, "intlExpressCounterVol"), c.intlVol);
     add({
       section: "우편창구",
       name: "국제특급",
-      formula: "(국제항공소포물량+Kpacket물량+국제특급물량)÷청별기준물량",
+      formula: "(국제항공소포물량+Kpacket물량+국제특급물량(창구접수))÷청별기준물량",
       value: express,
     });
 
@@ -141,25 +146,13 @@ export function calcOffice(
       note: `우편분야 산출인력(일반통상+특수통상+소포+국제특급) ${postal.toFixed(2)}명`,
     });
 
-    add({
-      section: "우편창구",
-      name: "알뜰폰",
-      formula: "판매실적÷청별기준건수",
-      value: div(v(values, "mvnoCount"), refMvno),
-    });
-    add({
-      section: "우편창구",
-      name: "소포상자",
-      formula: "판매물량÷청별기준건수",
-      value: div(v(values, "parcelBoxCount"), refBox),
-    });
+    add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷청별기준건수", value: div(v(values, "mvnoCount"), c.mvno) });
+    add({ section: "우편창구", name: "소포상자", formula: "판매물량÷청별기준건수", value: div(v(values, "parcelBoxCount"), c.box) });
 
     // ── 우편마케팅 ──
     const mk = mosu.marketing[region];
-    const refParcelRev = weighted(mosu.marketingAllAvg.parcelRev, mk.parcelRev, 1, 1);
-    const refPickup = weighted(mosu.marketingAllAvg.pickupVol, mk.pickupVol, 1, 1);
 
-    const contractRev = div(v(values, "contractParcelRev") - v(values, "storePartnerRev") * 0.5, refParcelRev);
+    const contractRev = div(v(values, "contractParcelRev") - v(values, "storePartnerRev") * 0.5, mk.parcelRev);
     add({
       section: "우편마케팅",
       name: "계약소포 연간세입",
@@ -182,7 +175,7 @@ export function calcOffice(
       v(values, "returnDeliveryVol") * 0.8 +
       (v(values, "intlExpressVisitVol") - v(values, "collectAgentVol")) * 3 +
       (v(values, "collectAgentVol") - v(values, "collectAgentCounterVol")) * 0.5;
-    const pickup = div(pickupSum, refPickup * workdays * 2);
+    const pickup = div(pickupSum, mk.pickupVol * workdays * 2);
     add({
       section: "우편마케팅",
       name: "픽업물량",
@@ -200,49 +193,57 @@ export function calcOffice(
       value: mkBase >= 3 ? 1 : 0,
       note: `마케팅분야 산출인력(계약소포 연간세입+픽업물량) ${mkBase.toFixed(2)}명`,
     });
-  } else {
+  } else if (kind === "소속국") {
     // ── 소속국 우편창구 ──
-    const allRev = mean(Object.values(mosu.affiliate).map((m) => m.generalRev));
-    const revenue = div(v(values, "totalRevenue") - v(values, "contractParcelRevAffiliate"), allRev);
+    const a = mosu.affiliate[region];
     add({
       section: "우편창구",
       name: "연간세입",
-      formula: "(소속국총세입−소속국계약소포세입)÷전체 평균",
-      value: revenue,
+      formula: "(소속국총세입−소속국계약소포세입)÷소속국 기준세입",
+      value: div(v(values, "totalRevenue") - v(values, "contractParcelRevAffiliate"), a.generalRev),
     });
     add({ section: "우편창구", name: "기본인력", formula: "0.5명 (우편·금융창구 공통 인력)", value: 0.5 });
-    add({
-      section: "우편창구",
-      name: "알뜰폰",
-      formula: "판매실적÷청별기준건수",
-      value: div(v(values, "mvnoCount"), affiliateRef(mosu, region, "mvno")),
-    });
-    add({
-      section: "우편창구",
-      name: "소포상자",
-      formula: "판매물량÷청별기준건수",
-      value: div(v(values, "parcelBoxCount"), affiliateRef(mosu, region, "box")),
-    });
+    add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷청별기준건수", value: div(v(values, "mvnoCount"), a.mvno) });
+    add({ section: "우편창구", name: "소포상자", formula: "판매물량÷청별기준건수", value: div(v(values, "parcelBoxCount"), a.box) });
 
     // ── 소속국 우편마케팅 ──
-    const contract = v(values, "contractParcelRevAffiliate");
-    const allAffiliateRev = mean(Object.values(mosu.marketing).map((m) => m.affiliateParcelRev));
-    const ref = weighted(allAffiliateRev, mosu.marketing[region].affiliateParcelRev, 1, 1);
-    const marketingFormula = "계약소포 연간세입÷청별기준세입";
-    // Plan SC: 규정에 있으나 아직 지원하지 않는 경우는 추측해서 계산하지 않고 그 사실을 그대로 표시한다.
-    if (contract > AFFILIATE_PARCEL_REV_LIMIT) {
-      add({
-        section: "우편마케팅",
-        name: "계약소포 연간세입",
-        formula: marketingFormula,
-        value: 0,
-        unsupported:
-          "소속국 계약소포 세입이 3억 원을 초과해 별표 2에 따라 총괄국 산출기준(단 기준은 전체평균)을 적용해야 합니다. " +
-          "이 화면은 아직 이 경우를 지원하지 않아(총괄국 산출에 필요한 입점업체 세입 등의 입력칸이 없음) 계산하지 않았습니다.",
-      });
-    } else {
-      add({ section: "우편마케팅", name: "계약소포 연간세입", formula: marketingFormula, value: div(contract, ref) });
-    }
+    add(affiliateMarketingLine(v(values, "contractParcelRevAffiliate"), mosu.marketing[region].affiliateParcelRev));
+  } else {
+    // ── 법원구내우체국 우편창구 ──
+    const court = mosu.court;
+    // 법원구내우체국은 특수통상·국제특급 세입을 총세입에서 빼고 따로 물량으로 계산한다.
+    const generalRev =
+      v(values, "totalRevenue") - (v(values, "domSpecialRev") + v(values, "intlSpecialRev") + v(values, "intlExpressRev"));
+    add({
+      section: "우편창구",
+      name: "연간세입",
+      formula: "[소속국총세입−(국내특수통상세입+국제특수통상세입+국제특급세입)]÷법원구내우체국기준세입",
+      value: div(generalRev, court.generalRev),
+    });
+    add({
+      section: "우편창구",
+      name: "특수통상(창구접수)",
+      formula: "법원우체국특수통상개별접수물량÷법원구내우체국기준물량",
+      value: div(v(values, "courtSpecialIndividualVol"), court.specialCounterVol),
+    });
+    add({
+      section: "우편창구",
+      name: "특수통상(연계접수)",
+      formula: "법원우체국특수통상시스템연계물량÷법원구내우체국기준물량",
+      value: div(v(values, "courtSystemLinkVol"), court.specialLinkVol),
+    });
+    add({
+      section: "우편창구",
+      name: "국제특급",
+      formula: "국제특급물량÷법원구내우체국기준물량",
+      value: div(v(values, "intlExpressVol"), court.intlExpressVol),
+    });
+    add({ section: "우편창구", name: "기본인력", formula: "0.5명 (우편·금융창구 공통 인력)", value: 0.5 });
+    add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷법원구내우체국기준건수", value: div(v(values, "mvnoCount"), court.mvno) });
+    add({ section: "우편창구", name: "소포상자", formula: "판매물량÷법원구내우체국기준건수", value: div(v(values, "parcelBoxCount"), court.box) });
+
+    // ── 법원구내우체국 우편마케팅 (소속국과 같은 산출식) ──
+    add(affiliateMarketingLine(v(values, "contractParcelRevAffiliate"), mosu.marketing[region].affiliateParcelRev));
   }
 
   const counterTotal = lines.filter((l) => l.section === "우편창구").reduce((s, l) => s + l.value, 0);
