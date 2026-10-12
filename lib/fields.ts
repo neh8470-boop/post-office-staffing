@@ -1,5 +1,7 @@
 // 입력 항목 정의. 이름은 「(기초자료1) 우편창구(마케팅) 업무량」 파일의 머리글을 따랐고,
-// 별표 2 산출식에서 쓰는 이름과 연결해 둔다. (key는 data/offices.json의 값 이름)
+// 별표 2 산출식에서 쓰는 이름과 연결해 둔다. (key는 data/groups.json의 값 이름)
+
+import { AFFILIATE_PARCEL_REV_LIMIT } from "./calc";
 
 export type FieldGroup = "우편창구" | "우편마케팅";
 export type OfficeKind = "총괄국" | "소속국" | "법원구내";
@@ -72,3 +74,27 @@ export const FIELDS: FieldDef[] = [
 ];
 
 export const FIELD_GROUPS: FieldGroup[] = ["우편창구", "우편마케팅"];
+
+// 소속국·법원구내우체국의 계약소포 세입이 3억 원을 넘으면 총괄국 산출기준(계약소포 연간세입 + 픽업물량)을 따르므로,
+// 총괄국의 우편마케팅 입력칸 중 아래 항목이 이 경우에만 함께 필요하다.
+const OVER_LIMIT_KEYS = new Set([
+  "storePartnerRev",
+  "contractIndividualVol",
+  "pickupIndividualVol",
+  "contractVol",
+  "storePartnerVol",
+  "simpleReceiptVol",
+  "directShipVol",
+  "manualLabelVol",
+  "returnParcelPickupVol",
+  "returnDeliveryVol",
+  "intlExpressVisitVol",
+  "collectAgentVol",
+  "collectAgentCounterVol",
+]);
+
+// 관서 종류와 현재 입력값(글자)에 따라 화면에 보이는(= 필수인) 입력칸 목록을 돌려준다.
+export function fieldsFor(kind: OfficeKind, raw: Record<string, string>): FieldDef[] {
+  const overLimit = kind !== "총괄국" && Number(raw.contractParcelRevAffiliate) > AFFILIATE_PARCEL_REV_LIMIT;
+  return FIELDS.filter((f) => f.kinds.includes(kind) || (overLimit && f.kinds.includes("총괄국") && OVER_LIMIT_KEYS.has(f.key)));
+}

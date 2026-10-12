@@ -73,6 +73,9 @@ export function validateReferences(
     need("기준값: 소속국 알뜰폰 건수", a?.mvno);
     need("기준값: 소속국 소포상자 건수", a?.box);
     need("기준값: 소속국 택배 세입", mosu.marketing[region]?.affiliateParcelRev);
+    need("기준값: 마케팅 전체 평균 택배 세입", mosu.marketingAllAvg?.parcelRev);
+    need("기준값: 마케팅 전체 평균 픽업물량", mosu.marketingAllAvg?.pickupVol);
+    need("연간 근무일수", workdays);
   } else {
     const court = mosu.court;
     need("기준값: 법원구내 연간세입", court?.generalRev);
@@ -82,6 +85,9 @@ export function validateReferences(
     need("기준값: 법원구내 알뜰폰 건수", court?.mvno);
     need("기준값: 법원구내 소포상자 건수", court?.box);
     need("기준값: 소속국 택배 세입", mosu.marketing[region]?.affiliateParcelRev);
+    need("기준값: 마케팅 전체 평균 택배 세입", mosu.marketingAllAvg?.parcelRev);
+    need("기준값: 마케팅 전체 평균 픽업물량", mosu.marketingAllAvg?.pickupVol);
+    need("연간 근무일수", workdays);
   }
   return issues;
 }

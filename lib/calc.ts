@@ -26,6 +26,8 @@ export type Mosu = {
   affiliate: Record<string, AffiliateMosu>;
   marketing: Record<string, MarketingMosu>;
   court: CourtMosu; // 법원구내우체국 기준값 (지방청과 관계없이 하나)
+  // 우편마케팅 전체 평균 기준값. 소속국 계약소포 세입이 3억 원을 넘을 때 총괄국 산출기준에 쓴다.
+  marketingAllAvg: { parcelRev: number; pickupVol: number };
 };
 
 export type CalcLine = {
@@ -39,7 +41,7 @@ export type CalcLine = {
 };
 
 // 별표 2 우편마케팅 > 소속국: 계약소포 연간세입이 3억 원을 초과하면 총괄국 산출기준을 따른다.
-const AFFILIATE_PARCEL_REV_LIMIT = 300_000_000;
+export const AFFILIATE_PARCEL_REV_LIMIT = 300_000_000;
 
 export type CalcResult = {
   lines: CalcLine[];
@@ -56,20 +58,63 @@ function div(a: number, b: number) {
 
 const v = (values: Values, key: string) => values[key] ?? 0;
 
-// 소속국·법원구내우체국의 우편마케팅 "계약소포 연간세입" 줄. 3억 원을 초과하면 계산하지 않고 미지원으로 표시한다.
-function affiliateMarketingLine(contract: number, ref: number): CalcLine {
-  const base = { section: "우편마케팅" as const, name: "계약소포 연간세입", formula: "계약소포 연간세입÷청별기준세입" };
-  // Plan SC: 규정에 있으나 아직 지원하지 않는 경우는 추측해서 계산하지 않고 그 사실을 그대로 표시한다.
+// 우편마케팅 "계약소포 연간세입" 줄 (총괄국 산출기준): [계약소포세입−(입점업체세입×0.5)]÷기준세입
+function contractRevenueLine(contract: number, storeRev: number, refRev: number, note?: string): CalcLine {
+  return {
+    section: "우편마케팅",
+    name: "계약소포 연간세입",
+    formula: "[계약소포세입−(입점업체세입×0.5)]÷청별기준세입",
+    value: div(contract - storeRev * 0.5, refRev),
+    note,
+  };
+}
+
+// 우편마케팅 "픽업물량" 줄 (총괄국 산출기준)
+function pickupLine(values: Values, refPickup: number, workdays: number, note?: string): CalcLine {
+  const store = v(values, "storePartnerVol");
+  const simple = v(values, "simpleReceiptVol");
+  const direct = v(values, "directShipVol");
+  const manual = v(values, "manualLabelVol");
+  const sum =
+    (v(values, "contractIndividualVol") - v(values, "pickupIndividualVol")) * 2 +
+    (v(values, "contractVol") - store - simple - direct - manual) +
+    store * 0.7 +
+    simple * 0.6 +
+    direct * 0.4 +
+    manual * 2 +
+    v(values, "returnParcelPickupVol") * 2 +
+    v(values, "returnDeliveryVol") * 0.8 +
+    (v(values, "intlExpressVisitVol") - v(values, "collectAgentVol")) * 3 +
+    (v(values, "collectAgentVol") - v(values, "collectAgentCounterVol")) * 0.5;
+  return {
+    section: "우편마케팅",
+    name: "픽업물량",
+    formula:
+      "【[(개별픽업−집배원개별픽업)×2]+(계약업체−입점업체−간편접수−직발송−수기기표지)+(입점업체×0.7)+(간편접수×0.6)+(직발송×0.4)+(수기기표지×2)+(반품픽업×2)+(반품배달×0.8)+[(국제특급방문접수−수집대행업체)×3]+[(수집대행업체−수집대행 중 창구접수)×0.5]】÷(청별기준물량×연간근무일수×2)",
+    value: div(sum, refPickup * workdays * 2),
+    note: [note, `연간근무일수 ${workdays}일`].filter(Boolean).join(" · "),
+  };
+}
+
+// 소속국·법원구내우체국의 우편마케팅. 계약소포 세입이 3억 원 이하면 "계약소포 연간세입÷소속국 기준세입"이고,
+// 3억 원을 초과하면 별표 2에 따라 총괄국 산출기준(계약소포 연간세입 + 픽업물량)을 전체 평균 기준값으로 적용한다.
+function affiliateMarketingLines(values: Values, mosu: Mosu, region: string, workdays: number): CalcLine[] {
+  const contract = v(values, "contractParcelRevAffiliate");
   if (contract > AFFILIATE_PARCEL_REV_LIMIT) {
-    return {
-      ...base,
-      value: 0,
-      unsupported:
-        "소속국 계약소포 세입이 3억 원을 초과해 별표 2에 따라 총괄국 산출기준(단 기준은 전체평균)을 적용해야 합니다. " +
-        "이 화면은 아직 이 경우를 지원하지 않아(총괄국 산출에 필요한 입점업체 세입 등의 입력칸이 없음) 계산하지 않았습니다.",
-    };
+    const note = "계약소포 세입 3억 원 초과 → 총괄국 산출기준(기준값은 전체 평균) 적용";
+    return [
+      contractRevenueLine(contract, v(values, "storePartnerRev"), mosu.marketingAllAvg.parcelRev, note),
+      pickupLine(values, mosu.marketingAllAvg.pickupVol, workdays, note),
+    ];
   }
-  return { ...base, value: div(contract, ref) };
+  return [
+    {
+      section: "우편마케팅",
+      name: "계약소포 연간세입",
+      formula: "계약소포 연간세입÷청별기준세입",
+      value: div(contract, mosu.marketing[region].affiliateParcelRev),
+    },
+  ];
 }
 
 export function calcOffice(
@@ -136,56 +181,31 @@ export function calcOffice(
       value: express,
     });
 
-    const postal = general + special + parcel + express;
+    const mvno = div(v(values, "mvnoCount"), c.mvno);
+    const box = div(v(values, "parcelBoxCount"), c.box);
+    // "기본인력 외 우편분야 산출인력"에는 알뜰폰·소포상자 인력도 포함된다. (담당자 산출 파일과 같은 기준)
+    const postal = general + special + parcel + express + mvno + box;
     const basic = 1 + (postal >= 3 ? 1 : 0);
     add({
       section: "우편창구",
       name: "기본인력",
       formula: "1명 + 1명(기본인력 외 우편분야 산출인력 3명 이상 限)",
       value: basic,
-      note: `우편분야 산출인력(일반통상+특수통상+소포+국제특급) ${postal.toFixed(2)}명`,
+      note: `우편분야 산출인력(일반통상+특수통상+소포+국제특급+알뜰폰+소포상자) ${postal.toFixed(2)}명`,
     });
 
-    add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷청별기준건수", value: div(v(values, "mvnoCount"), c.mvno) });
-    add({ section: "우편창구", name: "소포상자", formula: "판매물량÷청별기준건수", value: div(v(values, "parcelBoxCount"), c.box) });
+    add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷청별기준건수", value: mvno });
+    add({ section: "우편창구", name: "소포상자", formula: "판매물량÷청별기준건수", value: box });
 
     // ── 우편마케팅 ──
     const mk = mosu.marketing[region];
 
-    const contractRev = div(v(values, "contractParcelRev") - v(values, "storePartnerRev") * 0.5, mk.parcelRev);
-    add({
-      section: "우편마케팅",
-      name: "계약소포 연간세입",
-      formula: "[계약소포세입−(입점업체세입×0.5)]÷청별기준세입",
-      value: contractRev,
-    });
+    const contractLine = contractRevenueLine(v(values, "contractParcelRev"), v(values, "storePartnerRev"), mk.parcelRev);
+    const pickup = pickupLine(values, mk.pickupVol, workdays);
+    add(contractLine);
+    add(pickup);
 
-    const store = v(values, "storePartnerVol");
-    const simple = v(values, "simpleReceiptVol");
-    const direct = v(values, "directShipVol");
-    const manual = v(values, "manualLabelVol");
-    const pickupSum =
-      (v(values, "contractIndividualVol") - v(values, "pickupIndividualVol")) * 2 +
-      (v(values, "contractVol") - store - simple - direct - manual) +
-      store * 0.7 +
-      simple * 0.6 +
-      direct * 0.4 +
-      manual * 2 +
-      v(values, "returnParcelPickupVol") * 2 +
-      v(values, "returnDeliveryVol") * 0.8 +
-      (v(values, "intlExpressVisitVol") - v(values, "collectAgentVol")) * 3 +
-      (v(values, "collectAgentVol") - v(values, "collectAgentCounterVol")) * 0.5;
-    const pickup = div(pickupSum, mk.pickupVol * workdays * 2);
-    add({
-      section: "우편마케팅",
-      name: "픽업물량",
-      formula:
-        "【[(개별픽업−집배원개별픽업)×2]+(계약업체−입점업체−간편접수−직발송−수기기표지)+(입점업체×0.7)+(간편접수×0.6)+(직발송×0.4)+(수기기표지×2)+(반품픽업×2)+(반품배달×0.8)+[(국제특급방문접수−수집대행업체)×3]+[(수집대행업체−수집대행 중 창구접수)×0.5]】÷(청별기준물량×연간근무일수×2)",
-      value: pickup,
-      note: `연간근무일수 ${workdays}일`,
-    });
-
-    const mkBase = contractRev + pickup;
+    const mkBase = contractLine.value + pickup.value;
     add({
       section: "우편마케팅",
       name: "마케팅 지원",
@@ -207,7 +227,7 @@ export function calcOffice(
     add({ section: "우편창구", name: "소포상자", formula: "판매물량÷청별기준건수", value: div(v(values, "parcelBoxCount"), a.box) });
 
     // ── 소속국 우편마케팅 ──
-    add(affiliateMarketingLine(v(values, "contractParcelRevAffiliate"), mosu.marketing[region].affiliateParcelRev));
+    affiliateMarketingLines(values, mosu, region, workdays).forEach(add);
   } else {
     // ── 법원구내우체국 우편창구 ──
     const court = mosu.court;
@@ -243,7 +263,7 @@ export function calcOffice(
     add({ section: "우편창구", name: "소포상자", formula: "판매물량÷법원구내우체국기준건수", value: div(v(values, "parcelBoxCount"), court.box) });
 
     // ── 법원구내우체국 우편마케팅 (소속국과 같은 산출식) ──
-    add(affiliateMarketingLine(v(values, "contractParcelRevAffiliate"), mosu.marketing[region].affiliateParcelRev));
+    affiliateMarketingLines(values, mosu, region, workdays).forEach(add);
   }
 
   const counterTotal = lines.filter((l) => l.section === "우편창구").reduce((s, l) => s + l.value, 0);

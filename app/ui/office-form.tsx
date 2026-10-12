@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { calcOffice, type CalcResult, type Mosu } from "@/lib/calc";
-import { FIELDS, FIELD_GROUPS, type FieldDef } from "@/lib/fields";
+import { fieldsFor, FIELD_GROUPS, type FieldDef } from "@/lib/fields";
 import { officesFromSheet } from "@/lib/import-offices";
 import type { Office, OfficeGroup } from "@/lib/offices";
 import { citationFor, REGULATION_NAME, ROUNDING_CITATION } from "@/lib/regulation";
@@ -146,7 +146,7 @@ export default function OfficeForm({
       Object.assign(raw, edits[o.code] ?? {});
 
       const issues = [
-        ...validateInputs(FIELDS.filter((f) => f.kinds.includes(kind)), raw),
+        ...validateInputs(fieldsFor(kind, raw), raw),
         ...validateReferences(kind, mosu, REGION, workdays),
       ];
       if (issues.length > 0) {
@@ -178,6 +178,23 @@ export default function OfficeForm({
   const allReady = readyResults.length === offices.length && unsupportedOffices.length === 0;
   const counterAll = allReady ? readyResults.reduce((s, r) => s + r.counterTotal, 0) : 0;
   const marketingAll = allReady ? readyResults.reduce((s, r) => s + r.marketingTotal, 0) : 0;
+
+  // 총괄국 묶음별 합계. 한 묶음의 관서가 모두 계산됐을 때만 숫자를 낸다. (묶음마다 합산해 반올림한다.)
+  const groupSummaries = useMemo(
+    () =>
+      mergedGroups.map((g) => {
+        const results = g.offices.map((o) => outcomes.get(o.code)!.result);
+        const ready = results.every((r): r is CalcResult => r !== null && !r.lines.some((l) => l.unsupported));
+        const counter = ready ? results.reduce((s, r) => s + r!.counterTotal, 0) : 0;
+        const marketing = ready ? results.reduce((s, r) => s + r!.marketingTotal, 0) : 0;
+        return { id: g.id, name: g.name, count: g.offices.length, ready, counter, marketing, total: counter + marketing };
+      }),
+    [mergedGroups, outcomes],
+  );
+  const readySummaries = groupSummaries.filter((s) => s.ready);
+  const grandRounded = readySummaries.reduce((s, g) => s + Math.round(g.total), 0);
+  const grandExact = readySummaries.reduce((s, g) => s + g.total, 0);
+  const totalOfficeCount = allOffices.length;
 
   function valueOf(key: string) {
     return officeEdits[key] ?? String(office.values[key] ?? 0);
@@ -211,7 +228,7 @@ export default function OfficeForm({
       const result = officesFromSheet(rows, baseOffices);
       if (result.matched.length === 0) {
         throw new Error(
-          `이 파일에서 ${groups.map((g) => g.name).join("·")}과 그 소속국의 금융국기호를 찾지 못했습니다. 올바른 업무량 파일인지 확인해 주세요.`,
+          "이 파일에서 화면에 있는 관서의 금융국기호를 찾지 못했습니다. 올바른 업무량 파일인지 확인해 주세요.",
         );
       }
       setUploaded({ fileName: file.name, values: result.updates });
@@ -221,7 +238,9 @@ export default function OfficeForm({
         kind: "ok",
         text:
           `${file.name}에서 ${result.matched.length}곳의 값을 불러왔습니다.` +
-          (names.length > 0 ? ` 파일에서 찾지 못한 관서(${names.join(", ")})는 기존 값을 그대로 씁니다.` : ""),
+          (names.length > 0
+            ? ` 파일에서 찾지 못한 관서(${names.slice(0, 5).join(", ")}${names.length > 5 ? ` 외 ${names.length - 5}곳` : ""})는 기존 값을 그대로 씁니다.`
+            : ""),
       });
     } catch (err) {
       setUploadMessage({
@@ -247,31 +266,103 @@ export default function OfficeForm({
     });
   }
 
-  const visibleFields = FIELDS.filter((f) => f.kinds.includes(kindOf(office)));
+  // 지금 보고 있는 관서에서 화면에 보이는 입력칸. (계약소포 세입이 3억 원을 넘으면 마케팅 입력칸이 더 보인다.)
+  const currentRaw: Record<string, string> = {};
+  for (const [key, value] of Object.entries(office.values)) currentRaw[key] = String(value);
+  Object.assign(currentRaw, officeEdits);
+  const visibleFields = fieldsFor(kindOf(office), currentRaw);
 
   return (
     <div className="space-y-6">
-    {/* 총괄국 묶음 고르기 */}
-    <div role="tablist" aria-label="총괄국 묶음" className="flex flex-wrap gap-2">
-      {mergedGroups.map((g) => {
-        const active = g.id === group.id;
-        return (
-          <button
-            key={g.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => changeGroup(g.id)}
-            className={`rounded-full border px-4 py-1.5 text-sm font-medium ${
-              active
-                ? "border-blue-600 bg-blue-600 text-white"
-                : "border-zinc-300 bg-white hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-            }`}
-          >
-            {g.name} <span className={active ? "text-blue-100" : "text-zinc-500"}>({g.offices.length}곳)</span>
-          </button>
-        );
-      })}
+    {/* 전남청 전체 정리표: 총괄국 묶음별 소요 인력을 한눈에 본다 */}
+    <details className="rounded-lg border border-zinc-300 dark:border-zinc-700" open>
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+        전체 정리 — 총괄국 {mergedGroups.length}곳 · 관서 {totalOfficeCount}곳
+        {readySummaries.length === mergedGroups.length ? (
+          <span className="ml-2 text-blue-700 dark:text-blue-300">합계 {grandRounded.toLocaleString("ko-KR")}명</span>
+        ) : (
+          <span className="ml-2 text-red-700">일부 묶음 점검 필요</span>
+        )}
+      </summary>
+      <div className="overflow-x-auto px-4 pb-4">
+        <table className="w-full min-w-[34rem] text-left text-sm">
+          <thead className="text-zinc-600 dark:text-zinc-400">
+            <tr className="border-b border-zinc-200 dark:border-zinc-800">
+              <th className="py-1.5 pr-3 font-medium">총괄국</th>
+              <th className="py-1.5 pr-3 text-right font-medium">관서 수</th>
+              <th className="py-1.5 pr-3 text-right font-medium">우편창구</th>
+              <th className="py-1.5 pr-3 text-right font-medium">우편마케팅</th>
+              <th className="py-1.5 pr-3 text-right font-medium">합계</th>
+              <th className="py-1.5 pr-3 text-right font-medium">반올림(명)</th>
+              <th className="py-1.5 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {groupSummaries.map((s) => (
+              <tr
+                key={s.id}
+                className={`border-b border-zinc-100 dark:border-zinc-900 ${s.id === group.id ? "bg-blue-50 dark:bg-blue-950" : ""}`}
+              >
+                <td className="py-1.5 pr-3">{s.name}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{s.count}</td>
+                {s.ready ? (
+                  <>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(s.counter)}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(s.marketing)}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{fmt(s.total)}</td>
+                    <td className="py-1.5 pr-3 text-right font-semibold tabular-nums">{Math.round(s.total)}</td>
+                  </>
+                ) : (
+                  <td className="py-1.5 pr-3 text-right text-red-700" colSpan={4}>
+                    점검 필요
+                  </td>
+                )}
+                <td className="py-1.5 text-right">
+                  <button
+                    type="button"
+                    onClick={() => changeGroup(s.id)}
+                    className="rounded-md border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  >
+                    보기
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="font-semibold">
+            <tr>
+              <td className="pt-2" colSpan={4}>
+                전체 (총괄국 {readySummaries.length}곳 기준)
+              </td>
+              <td className="pt-2 pr-3 text-right tabular-nums">{fmt(grandExact)}</td>
+              <td className="pt-2 pr-3 text-right tabular-nums">{grandRounded.toLocaleString("ko-KR")}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+          총괄국과 소속국을 합산해 총괄국마다 반올림하므로(별표 2 주석), 전체 반올림 합계는 각 총괄국 반올림 값을 더한 값입니다.
+        </p>
+      </div>
+    </details>
+
+    {/* 총괄국 고르기 */}
+    <div className="flex flex-wrap items-center gap-2">
+      <label htmlFor="group-select" className="text-sm font-semibold">
+        총괄국 선택
+      </label>
+      <select
+        id="group-select"
+        value={group.id}
+        onChange={(e) => changeGroup(e.target.value)}
+        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        {mergedGroups.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.name} ({g.offices.length}곳)
+          </option>
+        ))}
+      </select>
     </div>
 
     <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
@@ -355,7 +446,7 @@ export default function OfficeForm({
             ) : null}
           </div>
           <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-            「(기초자료1) 우편창구(마케팅) 업무량」 형식의 .xlsx 파일을 올리면 {groups.map((g) => g.name).join("·")}과 그 소속국({baseOffices.length}곳)의 값을 읽어 옵니다.
+            「(기초자료1) 우편창구(마케팅) 업무량」 형식의 .xlsx 파일을 올리면 화면에 있는 {baseOffices.length}개 관서의 값을 읽어 옵니다.
             파일은 서버로 보내지 않고 이 브라우저 안에서만 읽으며, 새로고침하면 처음 자료로 돌아갑니다.
           </p>
           {uploaded ? (
