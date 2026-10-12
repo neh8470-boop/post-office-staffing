@@ -2,6 +2,7 @@ import { loadMosu } from "@/lib/mosu";
 import { loadOfficeGroups } from "@/lib/offices";
 import { countWorkdays, WORK_YEAR } from "@/lib/workdays";
 import AppTabs from "./ui/app-tabs";
+import HomeTab from "./ui/home-tab";
 import OfficeForm from "./ui/office-form";
 import ReferenceTab from "./ui/reference-tab";
 
@@ -13,14 +14,12 @@ export default async function Home() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
       <header className="mb-6">
         <h1 className="text-2xl font-bold">우체국 인력 운영기준 분석</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          전남지방우정청 총괄국 {groups?.length ?? 0}곳과 그 소속국(총 {total}곳)의 우편창구·우편마케팅 입력값으로 소요 인력을
-          산출합니다. (테스트용 · 내부 자료 · {WORK_YEAR}년 기준)
-        </p>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">테스트용 · 내부 자료 · {WORK_YEAR}년 기준</p>
       </header>
 
       {groups && mosu ? (
         <AppTabs
+          home={<HomeTab groupCount={groups.length} officeCount={total} />}
           calc={<OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} />}
           reference={<ReferenceTab />}
         />

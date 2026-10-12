@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useNav } from "./nav";
 import {
   REFERENCE_SECTIONS,
   REGULATION_FULL_NAME,
@@ -56,7 +56,8 @@ function Block({ block }: { block: RefBlock }) {
 }
 
 export default function ReferenceTab() {
-  const [sectionId, setSectionId] = useState(REFERENCE_SECTIONS.find((s) => s.ready)?.id ?? REFERENCE_SECTIONS[0].id);
+  // 어떤 별표를 열지는 AppTabs가 들고 있다. (처음 화면의 목차에서도 별표를 바로 열 수 있도록)
+  const { refSection: sectionId, setRefSection: setSectionId } = useNav();
   const section = REFERENCE_SECTIONS.find((s) => s.id === sectionId) ?? REFERENCE_SECTIONS[0];
 
   return (

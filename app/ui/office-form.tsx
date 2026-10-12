@@ -275,7 +275,7 @@ export default function OfficeForm({
   return (
     <div className="space-y-6">
     {/* 전남청 전체 정리표: 총괄국 묶음별 소요 인력을 한눈에 본다 */}
-    <details className="rounded-lg border border-zinc-300 dark:border-zinc-700" open>
+    <details id="calc-summary" className="scroll-mt-4 rounded-lg border border-zinc-300 dark:border-zinc-700" open>
       <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
         전체 정리 — 총괄국 {mergedGroups.length}곳 · 관서 {totalOfficeCount}곳
         {readySummaries.length === mergedGroups.length ? (
@@ -347,7 +347,7 @@ export default function OfficeForm({
     </details>
 
     {/* 총괄국 고르기 */}
-    <div className="flex flex-wrap items-center gap-2">
+    <div id="calc-group" className="flex scroll-mt-4 flex-wrap items-center gap-2">
       <label htmlFor="group-select" className="text-sm font-semibold">
         총괄국 선택
       </label>
@@ -416,7 +416,7 @@ export default function OfficeForm({
 
       <div className="min-w-0 space-y-6">
         {/* 엑셀 올리기: 담당자가 업무량 엑셀을 나중에라도 바꿔 올릴 수 있다 */}
-        <section className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+        <section id="calc-upload" className="scroll-mt-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mr-auto text-sm font-semibold">업무량 엑셀 파일</h2>
             <input
@@ -469,7 +469,7 @@ export default function OfficeForm({
         </section>
 
         {/* 선택한 묶음의 전체 합계 */}
-        <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+        <section id="calc-total" className="scroll-mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
           <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
             {group.name} 전체 소요 인력 (총괄국 + 소속국 {offices.length - 1}국 합산)
           </h2>
@@ -548,7 +548,7 @@ export default function OfficeForm({
         ) : null}
 
         {/* 소요 인력 산출 결과 */}
-        <section className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
+        <section id="calc-result" className="scroll-mt-4 rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-semibold">소요 인력 산출 결과</h3>
             {result ? (
@@ -634,7 +634,7 @@ export default function OfficeForm({
           // 이 관서 종류에서 입력받는 칸이 없는 분야(예: 소속국의 우편마케팅)는 제목도 보이지 않게 한다.
           if (groupFields.length === 0) return null;
           return (
-          <section key={group} className="space-y-4">
+          <section key={group} id={`calc-inputs-${group}`} className="scroll-mt-4 space-y-4">
             <h3 className="border-b border-zinc-300 pb-1 text-lg font-semibold dark:border-zinc-700">
               {group} 입력
             </h3>
