@@ -1,7 +1,9 @@
 import { loadMosu } from "@/lib/mosu";
 import { loadOfficeGroups } from "@/lib/offices";
 import { countWorkdays, WORK_YEAR } from "@/lib/workdays";
+import AppTabs from "./ui/app-tabs";
 import OfficeForm from "./ui/office-form";
+import ReferenceTab from "./ui/reference-tab";
 
 export default async function Home() {
   const [groups, mosu] = await Promise.all([loadOfficeGroups(), loadMosu()]);
@@ -18,7 +20,10 @@ export default async function Home() {
       </header>
 
       {groups && mosu ? (
-        <OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} />
+        <AppTabs
+          calc={<OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} />}
+          reference={<ReferenceTab />}
+        />
       ) : (
         <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
           관서·모수 자료(data/groups.json, data/mosu.json)를 찾을 수 없습니다. 내부 자료는 git에
