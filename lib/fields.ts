@@ -18,6 +18,7 @@ export type FieldDef = {
 const G: OfficeKind[] = ["총괄국"];
 const SC: OfficeKind[] = ["소속국", "법원구내"]; // 소속국 · 법원구내우체국 공통
 const C: OfficeKind[] = ["법원구내"];
+const GC: OfficeKind[] = ["총괄국", "법원구내"]; // 총괄국 · 법원구내우체국 공통
 const ALL: OfficeKind[] = ["총괄국", "소속국", "법원구내"];
 
 export const FIELDS: FieldDef[] = [
@@ -40,7 +41,7 @@ export const FIELDS: FieldDef[] = [
   // ── 우편창구 · 국제특급 ──
   { key: "kpacketVol", label: "Kpacket 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: G },
   // 국제특급은 "창구접수 限"이라서 창구접수 물량만 입력받는다.
-  { key: "intlExpressCounterVol", label: "국제특급 창구접수 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: G },
+  { key: "intlExpressCounterVol", label: "국제특급 창구접수 물량", unit: "통", group: "우편창구", section: "국제특급", kinds: GC },
   // ── 우편창구 · 소속국 세입 ──
   { key: "totalRevenue", label: "소속국 총세입", unit: "원", group: "우편창구", section: "소속국 세입", kinds: SC },
   // 같은 값을 우편창구 연간세입(총세입에서 뺌)과 우편마케팅 계약소포 연간세입에 함께 쓰므로 한 곳에만 둔다.
@@ -51,7 +52,6 @@ export const FIELDS: FieldDef[] = [
   { key: "intlExpressRev", label: "국제특급 세입", unit: "원", group: "우편창구", section: "법원구내우체국", kinds: C },
   { key: "courtSpecialIndividualVol", label: "법원우체국 특수통상 개별접수 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
   { key: "courtSystemLinkVol", label: "법원우체국 특수통상 시스템연계(USB접수) 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
-  { key: "intlExpressVol", label: "국제특급 물량", unit: "통", group: "우편창구", section: "법원구내우체국", kinds: C },
   // ── 우편창구 · 기타업무(공통) ──
   { key: "mvnoCount", label: "알뜰폰 판매실적(가입건수)", unit: "건", group: "우편창구", section: "기타업무(공통)", kinds: ALL },
   { key: "parcelBoxCount", label: "소포상자 판매물량", unit: "개", group: "우편창구", section: "기타업무(공통)", kinds: ALL },

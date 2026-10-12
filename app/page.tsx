@@ -2,6 +2,7 @@ import { loadMosu } from "@/lib/mosu";
 import { loadOfficeGroups } from "@/lib/offices";
 import { countWorkdays, WORK_YEAR } from "@/lib/workdays";
 import AppTabs from "./ui/app-tabs";
+import FreeCalc from "./ui/free-calc";
 import HomeTab from "./ui/home-tab";
 import OfficeForm from "./ui/office-form";
 import ReferenceTab from "./ui/reference-tab";
@@ -21,6 +22,7 @@ export default async function Home() {
         <AppTabs
           home={<HomeTab groupCount={groups.length} officeCount={total} />}
           calc={<OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} />}
+          free={<FreeCalc mosu={mosu} />}
           reference={<ReferenceTab />}
         />
       ) : (

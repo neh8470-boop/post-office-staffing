@@ -34,6 +34,41 @@ function hasExpectedHeader(rows: SheetRows): boolean {
   return false;
 }
 
+// 엑셀에 들어 있는 관서 하나. 전국 어느 관서든 골라서 계산해 볼 수 있도록 값을 그대로 담는다.
+export type SheetOffice = {
+  key: string; // 목록에서 구별하는 이름(행 번호)
+  code: string; // 금융국기호 (없으면 빈칸)
+  name: string; // 우체국명
+  region: string; // 청명 (예: 전남청)
+  parent: string; // 총괄국명
+  kind: string; // 국형태 (총괄국·소속국·별정국·취급국 등)
+  values: Record<string, number>;
+};
+
+// 업무량 엑셀의 모든 관서(총괄국·소속국·별정국·취급국 등)를 목록으로 읽는다. 전국 관서가 들어 있는 파일도 읽을 수 있다.
+export function listOfficesFromSheet(rows: SheetRows): SheetOffice[] {
+  if (!hasExpectedHeader(rows)) {
+    throw new Error(
+      "「(기초자료1) 우편창구(마케팅) 업무량」 형식이 아닙니다. 3행 머리글에 총괄국명·금융국기호·국형태가 있는 파일을 올려 주세요.",
+    );
+  }
+  const list: SheetOffice[] = [];
+  for (const [rowNo, row] of rows) {
+    if (rowNo <= 9) continue; // 머리글 행
+    const name = row.D?.trim();
+    const kind = row.G?.trim();
+    if (!name || !kind) continue;
+
+    const values: Record<string, number> = {};
+    for (const [col, key] of Object.entries(UPLOAD_COLUMNS)) {
+      const text = row[col]?.trim();
+      values[key] = text === undefined || text === "" ? 0 : Number(text);
+    }
+    list.push({ key: `r${rowNo}`, code: row.E?.trim() ?? "", name, region: row.B?.trim() ?? "", parent: row.C?.trim() ?? "", kind, values });
+  }
+  return list;
+}
+
 export function officesFromSheet(rows: SheetRows, targets: { code: string }[]): ImportResult {
   if (!hasExpectedHeader(rows)) {
     throw new Error(

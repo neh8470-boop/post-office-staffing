@@ -2,8 +2,8 @@
 
 import { createContext, useContext } from "react";
 
-// 화면 맨 위 탭 이름. 홈(처음 화면) · 소요 인력 계산 · 참고자료
-export type TabId = "home" | "calc" | "reference";
+// 화면 맨 위 탭 이름. 홈(처음 화면) · 총괄국·관서 조회(calc) · 직접 입력 계산(free) · 참고자료
+export type TabId = "home" | "calc" | "free" | "reference";
 
 export type GoToOptions = {
   targetId?: string; // 이동한 뒤 화면에서 찾아갈 곳의 id (없으면 맨 위로)

@@ -6,7 +6,8 @@ import { NavContext, type GoToOptions, type TabId } from "./nav";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "home", label: "처음 화면" },
-  { id: "calc", label: "소요 인력 계산" },
+  { id: "calc", label: "총괄국·관서 조회" },
+  { id: "free", label: "직접 입력 계산" },
   { id: "reference", label: "참고자료" },
 ];
 
@@ -14,10 +15,12 @@ const TABS: { id: TabId; label: string }[] = [
 export default function AppTabs({
   home,
   calc,
+  free,
   reference,
 }: {
   home: ReactNode;
   calc: ReactNode;
+  free: ReactNode;
   reference: ReactNode;
 }) {
   const [tab, setTab] = useState<TabId>("home"); // 처음 접속하면 홈 화면이 보인다
@@ -37,7 +40,7 @@ export default function AppTabs({
 
   const nav = useMemo(() => ({ tab, refSection, setRefSection, goTo }), [tab, refSection, goTo]);
 
-  const panels: Record<TabId, ReactNode> = { home, calc, reference };
+  const panels: Record<TabId, ReactNode> = { home, calc, free, reference };
 
   return (
     <NavContext.Provider value={nav}>

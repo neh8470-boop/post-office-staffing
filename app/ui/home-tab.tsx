@@ -23,9 +23,9 @@ const TOC: TocGroup[] = [
   },
   {
     no: "2",
-    title: "소요 인력 계산",
+    title: "총괄국·관서 조회",
     tab: "calc",
-    desc: "관서의 업무량을 넣으면 필요한 인력을 계산하고, 계산식과 근거 조문을 함께 보여 줍니다.",
+    desc: "담겨 있는 자료(전남청 총괄국 25곳과 소속국)의 소요 인력을 조회합니다. 계산식과 근거 조문을 함께 보여 줍니다.",
     items: [
       { label: "전체 정리표 — 총괄국별 소요 인력을 한 표로", tab: "calc", targetId: "calc-summary" },
       { label: "총괄국 선택 · 관서 선택", tab: "calc", targetId: "calc-group" },
@@ -37,6 +37,19 @@ const TOC: TocGroup[] = [
   },
   {
     no: "3",
+    title: "직접 입력 계산",
+    tab: "free",
+    desc: "전국 어느 관서든 값을 직접 넣거나 엑셀에서 불러와 소요 인력을 계산합니다.",
+    items: [
+      { label: "관서 정보 — 지방청 · 관서 종류 · 연도", tab: "free", targetId: "free-info" },
+      { label: "엑셀에서 관서 불러오기 (전국 관서 검색)", tab: "free", targetId: "free-import" },
+      { label: "소요 인력 산출 결과", tab: "free", targetId: "free-result" },
+      { label: "입력 항목", tab: "free", targetId: "free-inputs" },
+      { label: "합산 목록 — 총괄국 + 소속국 합계", tab: "free", targetId: "free-basket" },
+    ],
+  },
+  {
+    no: "4",
     title: "참고자료",
     tab: "reference",
     desc: `${REGULATION_FULL_NAME}의 별표를 정리해 둔 자료입니다.`,
@@ -54,6 +67,10 @@ const FEATURES = [
     body: "결과마다 적용한 계산식과 근거 조문을 같이 보여 줘서, 왜 그 인력이 나왔는지 바로 확인할 수 있습니다.",
   },
   {
+    title: "전국 어느 관서든 직접 계산",
+    body: "담겨 있는 자료 밖의 관서도 값을 직접 넣거나, 전국 관서가 들어 있는 업무량 엑셀에서 이름으로 찾아 불러오면 바로 계산합니다. 지방청을 고르면 그 지방청의 기준값을 씁니다.",
+  },
+  {
     title: "엑셀로 한꺼번에 불러오기",
     body: "업무량 엑셀 파일을 올리면 화면에 있는 모든 관서의 값이 한 번에 채워집니다. 파일은 서버로 보내지 않고 이 브라우저 안에서만 읽습니다.",
   },
@@ -64,7 +81,7 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { title: "총괄국을 고릅니다", body: "‘소요 인력 계산’ 탭에서 총괄국을 고르면 그 총괄국과 소속국들이 나옵니다." },
+  { title: "어떤 관서인지 정합니다", body: "전남청 총괄국과 소속국이면 ‘총괄국·관서 조회’ 탭에서 총괄국을 고릅니다. 그 밖의 전국 관서는 ‘직접 입력 계산’ 탭을 씁니다." },
   { title: "업무량을 넣습니다", body: "업무량 엑셀을 올리거나, 입력칸에 값을 직접 넣습니다. 미리 채워진 값을 고쳐 볼 수도 있습니다." },
   { title: "소요 인력을 확인합니다", body: "관서별 인력과 총괄국 전체 합계, 계산식과 근거 조문이 바로 나옵니다." },
   { title: "규정이 궁금하면 참고자료를 봅니다", body: "‘참고자료’ 탭에서 계산에 쓰인 규정의 별표를 확인합니다." },
@@ -75,6 +92,7 @@ const NOTES = [
   "업무량과 기준값(모수)은 2025년 자료를 기준으로 합니다.",
   "우편창구와 우편마케팅만 계산합니다. 금융창구·우체국 발착·지원지도 등은 참고자료로만 제공합니다.",
   "입력한 값은 저장되지 않습니다. 화면을 새로고침하면 처음 자료로 돌아갑니다.",
+  "직접 입력 계산은 지방청별 기준값(모수)을 쓰고, 법원구내우체국은 전국 공통 기준값을 씁니다. 연도는 2025년·2026년 근무일수를 지원합니다.",
   "담당자가 계산한 값과 비교해 전남지방우정청 323개 관서가 모두 일치함을 확인했습니다. 계산 결과는 참고용입니다.",
 ];
 
@@ -97,7 +115,14 @@ export default function HomeTab({ groupCount, officeCount }: { groupCount: numbe
             onClick={() => goTo("calc")}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            소요 인력 계산하러 가기
+            총괄국·관서 조회하기
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo("free")}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            직접 입력해 계산하기
           </button>
           <button
             type="button"
@@ -163,7 +188,7 @@ export default function HomeTab({ groupCount, officeCount }: { groupCount: numbe
       <section id="home-toc" className="scroll-mt-4">
         <h2 className="mb-1 text-xl font-bold">목차</h2>
         <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">항목을 누르면 해당 화면의 그 위치로 이동합니다.</p>
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {TOC.map((g) => (
             <nav key={g.no} aria-label={`${g.title} 목차`} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
               <h3 className="font-semibold">

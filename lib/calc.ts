@@ -252,11 +252,12 @@ export function calcOffice(
       formula: "법원우체국특수통상시스템연계물량÷법원구내우체국기준물량",
       value: div(v(values, "courtSystemLinkVol"), court.specialLinkVol),
     });
+    // 법원구내우체국도 총괄국처럼 국제특급은 창구접수 물량만 쓴다. (담당자 산출 파일과 같은 기준)
     add({
       section: "우편창구",
       name: "국제특급",
-      formula: "국제특급물량÷법원구내우체국기준물량",
-      value: div(v(values, "intlExpressVol"), court.intlExpressVol),
+      formula: "국제특급물량(창구접수)÷법원구내우체국기준물량",
+      value: div(v(values, "intlExpressCounterVol"), court.intlExpressVol),
     });
     add({ section: "우편창구", name: "기본인력", formula: "0.5명 (우편·금융창구 공통 인력)", value: 0.5 });
     add({ section: "우편창구", name: "알뜰폰", formula: "판매실적÷법원구내우체국기준건수", value: div(v(values, "mvnoCount"), court.mvno) });
