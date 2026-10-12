@@ -18,19 +18,22 @@ export default async function Home() {
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">테스트용 · 내부 자료 · {WORK_YEAR}년 기준</p>
       </header>
 
-      {groups && mosu ? (
-        <AppTabs
-          home={<HomeTab groupCount={groups.length} officeCount={total} />}
-          calc={<OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} />}
-          free={<FreeCalc mosu={mosu} />}
-          reference={<ReferenceTab />}
-        />
-      ) : (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-          관서·모수 자료(data/groups.json, data/mosu.json)를 찾을 수 없습니다. 내부 자료는 git에
-          올라가지 않으므로, 이 컴퓨터의 data 폴더에 파일이 있어야 합니다.
-        </p>
-      )}
+      {/* 내부 자료(data 폴더)가 없어도 처음 화면과 참고자료는 열리고, 계산 탭에만 안내를 보여 준다. */}
+      <AppTabs
+        home={<HomeTab groupCount={groups?.length ?? 0} officeCount={total} />}
+        calc={groups && mosu ? <OfficeForm groups={groups} mosu={mosu} workdays={countWorkdays(WORK_YEAR)} /> : <NoData />}
+        free={mosu ? <FreeCalc mosu={mosu} /> : <NoData />}
+        reference={<ReferenceTab />}
+      />
     </main>
+  );
+}
+
+function NoData() {
+  return (
+    <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+      관서·모수 자료(data/groups.json, data/mosu.json)를 찾을 수 없습니다. 내부 자료는 git에
+      올라가지 않으므로, 이 컴퓨터의 data 폴더에 파일이 있어야 계산할 수 있습니다.
+    </p>
   );
 }
