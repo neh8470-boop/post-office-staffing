@@ -48,7 +48,7 @@
 
 12. ✅ 화면 다듬기: 숫자 천 단위 표시, 모바일 화면 확인, 소속국 화면에서 같은 입력칸(소속국 계약소포 세입)이 두 번 보이는 것 정리
 13. ✅ (결정: 보안 확인 전까지 내부 자료 없이 배포. data 폴더는 .vercelignore로 제외하고, 자료가 없으면 처음 화면·참고자료만 열림) **선행 조건: 기관 보안 기준에서 내부 자료의 Vercel 업로드 허용 여부 확인** → 허용되면 data 배포 방식과 접근 제한(비밀번호) 정하기, 허용되지 않으면 로컬 전용 실행으로 마무리
-14. 🔶 (접속 비밀번호 문지기 proxy.ts·로그인 화면·.vercelignore는 구현·시험 완료. 남은 것: SITE_PASSWORD와 VERCEL_TOKEN을 .env·Vercel 환경변수에 넣고 실제 배포 후 비밀번호 없이 막히는지 확인) `.env`에 VERCEL_TOKEN을 넣고 Vercel CLI로 배포한 뒤, 비밀번호 없이는 페이지와 데이터 응답이 모두 막히는지 확인
+14. ✅ 2026-10-12 배포 완료(https://post-office-staffing.vercel.app, 자료 없이 배포, 비밀번호 없이는 로그인 화면으로 막힘 확인). (접속 비밀번호 문지기 proxy.ts·로그인 화면·.vercelignore는 구현·시험 완료. 남은 것: SITE_PASSWORD와 VERCEL_TOKEN을 .env·Vercel 환경변수에 넣고 실제 배포 후 비밀번호 없이 막히는지 확인) `.env`에 VERCEL_TOKEN을 넣고 Vercel CLI로 배포한 뒤, 비밀번호 없이는 페이지와 데이터 응답이 모두 막히는지 확인
 15. ⬜ PRD·PLAN·DESIGN 최종 일치 점검과 완료 보고
 
 ### E. 추가 요청
